@@ -192,17 +192,17 @@ def crime_list():
         query = query.filter(Crime.type == request.args.get('crime_type'))
     
     date_from_str = request.args.get('date_from')
-    if date_from_str and isinstance(date_from_str, str) and date_from_str.strip():
+    if date_from_str:
         try:
-            date_from = datetime.strptime(date_from_str, '%Y-%m-%d').date()
+            date_from = datetime.strptime(str(date_from_str), '%Y-%m-%d').date()
             query = query.filter(Crime.date >= date_from)
         except (ValueError, TypeError):
             pass
     
     date_to_str = request.args.get('date_to')
-    if date_to_str and isinstance(date_to_str, str) and date_to_str.strip():
+    if date_to_str:
         try:
-            date_to = datetime.strptime(date_to_str, '%Y-%m-%d').date()
+            date_to = datetime.strptime(str(date_to_str), '%Y-%m-%d').date()
             query = query.filter(Crime.date <= date_to)
         except (ValueError, TypeError):
             pass
