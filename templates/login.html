@@ -10,35 +10,16 @@
                     Sign In
                 </h4>
             </div>
-            <div class="card-body">
-                <form method="POST" action="{{ url_for('login') }}">
-                    {{ form.hidden_tag() }}
-                    
-                    <div class="mb-3">
-                        {{ form.username.label(class="form-label") }}
-                        {{ form.username(class="form-control", placeholder="Enter username") }}
-                        {% for error in form.username.errors %}
-                        <span class="text-danger">{{ error }}</span>
-                        {% endfor %}
-                    </div>
-                    
-                    <div class="mb-3">
-                        {{ form.password.label(class="form-label") }}
-                        {{ form.password(class="form-control", placeholder="Enter password") }}
-                        {% for error in form.password.errors %}
-                        <span class="text-danger">{{ error }}</span>
-                        {% endfor %}
-                    </div>
-                    
-                    <div class="mb-3 form-check">
-                        {{ form.remember_me(class="form-check-input") }}
-                        {{ form.remember_me.label(class="form-check-label") }}
-                    </div>
-                    
-                    <div class="d-grid">
-                        {{ form.submit(class="btn btn-primary") }}
-                    </div>
-                </form>
+            <div class="card-body text-center">
+                <h2 class="mb-4">Crime Management System</h2>
+                <p class="lead mb-4">
+                    A comprehensive solution for tracking and managing crime records, cases, evidence, and more.
+                </p>
+                <div class="d-grid gap-2 col-8 mx-auto">
+                    <a href="{{ url_for('replit_auth.login') }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-sign-in-alt me-2"></i> Sign In
+                    </a>
+                </div>
             </div>
             <div class="card-footer text-muted text-center">
                 <p class="mb-0">

@@ -1,5 +1,5 @@
 from flask import render_template, redirect, url_for, flash, request, jsonify, session, abort
-from flask_login import login_user, logout_user, login_required, current_user
+from flask_login import login_required, current_user
 from urllib.parse import urlparse
 from sqlalchemy import func, extract, desc, or_
 from datetime import datetime, date, timedelta
@@ -8,80 +8,42 @@ import calendar
 from app import app, db
 from models import (User, Crime, Criminal, CriminalCrime, Case, CaseNote, 
                    Victim, Witness, Evidence, PoliceStation, PoliceOfficer)
-from forms import (LoginForm, RegistrationForm, EditProfileForm, ChangePasswordForm,
+from forms import (EditProfileForm, ChangePasswordForm,
                   CrimeForm, CrimeSearchForm, CriminalForm, CriminalSearchForm,
                   CaseForm, CaseNoteForm, CaseSearchForm, VictimForm, WitnessForm,
                   EvidenceForm, PoliceStationForm, PoliceOfficerForm)
 from utils import role_required
+from replit_auth import require_login, make_replit_blueprint
+
+# Register Replit auth blueprint
+app.register_blueprint(make_replit_blueprint(), url_prefix="/auth")
+
+# Make session permanent
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
 
 # Home and authentication routes
 @app.route('/')
 def index():
-    return render_template('dashboard.html', title='Home')
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    
-    form = LoginForm()
-    if form.validate_on_submit():
-        user = User.query.filter_by(username=form.username.data).first()
-        if user is None or not user.check_password(form.password.data):
-            flash('Invalid username or password', 'danger')
-            return redirect(url_for('login'))
-        
-        if not user.is_active:
-            flash('Your account is inactive. Please contact an administrator.', 'warning')
-            return redirect(url_for('login'))
-        
-        login_user(user, remember=form.remember_me.data)
-        next_page = request.args.get('next')
-        if not next_page or urlparse(next_page).netloc != '':
-            next_page = url_for('index')
-        
-        flash('Login successful!', 'success')
-        return redirect(next_page)
-    
-    return render_template('login.html', title='Sign In', form=form)
+        return redirect(url_for('dashboard'))
+    return render_template('login.html', title='Sign In')
 
 @app.route('/logout')
 def logout():
-    logout_user()
-    flash('You have been logged out.', 'info')
-    return redirect(url_for('login'))
-
-@app.route('/register', methods=['GET', 'POST'])
-@login_required
-@role_required('admin')
-def register():
-    form = RegistrationForm()
-    if form.validate_on_submit():
-        user = User(
-            username=form.username.data,
-            email=form.email.data,
-            first_name=form.first_name.data,
-            last_name=form.last_name.data,
-            role=form.role.data
-        )
-        user.set_password(form.password.data)
-        db.session.add(user)
-        db.session.commit()
-        flash('User registration successful!', 'success')
-        return redirect(url_for('user_list'))
-    
-    return render_template('user/add.html', title='Register User', form=form)
+    return redirect(url_for('replit_auth.logout'))
 
 # User management routes
 @app.route('/users')
-@login_required
+@require_login
 @role_required('admin')
 def user_list():
     users = User.query.all()
     return render_template('user/list.html', title='User Management', users=users)
 
-@app.route('/users/<int:id>')
-@login_required
+@app.route('/users/<string:id>')
+@require_login
 def user_profile(id):
     user = User.query.get_or_404(id)
     if current_user.id != user.id and not current_user.is_admin():
@@ -89,8 +51,8 @@ def user_profile(id):
     
     return render_template('user/profile.html', title='User Profile', user=user)
 
-@app.route('/users/<int:id>/edit', methods=['GET', 'POST'])
-@login_required
+@app.route('/users/<string:id>/edit', methods=['GET', 'POST'])
+@require_login
 def edit_profile(id):
     user = User.query.get_or_404(id)
     if current_user.id != user.id and not current_user.is_admin():
@@ -114,26 +76,23 @@ def edit_profile(id):
     
     return render_template('user/add.html', title='Edit Profile', form=form)
 
-@app.route('/change_password', methods=['GET', 'POST'])
-@login_required
-def change_password():
-    form = ChangePasswordForm()
+@app.route('/change_role/<string:id>/<string:role>', methods=['POST'])
+@require_login
+@role_required('admin')
+def change_role(id, role):
+    if role not in ['admin', 'officer', 'analyst']:
+        flash('Invalid role', 'danger')
+        return redirect(url_for('user_list'))
     
-    if form.validate_on_submit():
-        if not current_user.check_password(form.current_password.data):
-            flash('Current password is incorrect', 'danger')
-            return redirect(url_for('change_password'))
-        
-        current_user.set_password(form.new_password.data)
-        db.session.commit()
-        flash('Your password has been changed successfully!', 'success')
-        return redirect(url_for('user_profile', id=current_user.id))
-    
-    return render_template('user/change_password.html', title='Change Password', form=form)
+    user = User.query.get_or_404(id)
+    user.role = role
+    db.session.commit()
+    flash(f'User role updated to {role}', 'success')
+    return redirect(url_for('user_list'))
 
 # Dashboard and analytics
 @app.route('/dashboard')
-@login_required
+@require_login
 def dashboard():
     # Get crime statistics for the dashboard
     today = date.today()
@@ -198,7 +157,7 @@ def dashboard():
 
 # Crime routes
 @app.route('/crimes')
-@login_required
+@require_login
 def crime_list():
     form = CrimeSearchForm()
     
@@ -218,12 +177,18 @@ def crime_list():
         query = query.filter(Crime.type == request.args.get('crime_type'))
     
     if request.args.get('date_from'):
-        date_from = datetime.strptime(request.args.get('date_from'), '%Y-%m-%d').date()
-        query = query.filter(Crime.date >= date_from)
+        try:
+            date_from = datetime.strptime(request.args.get('date_from'), '%Y-%m-%d').date()
+            query = query.filter(Crime.date >= date_from)
+        except (ValueError, TypeError):
+            pass
     
     if request.args.get('date_to'):
-        date_to = datetime.strptime(request.args.get('date_to'), '%Y-%m-%d').date()
-        query = query.filter(Crime.date <= date_to)
+        try:
+            date_to = datetime.strptime(request.args.get('date_to'), '%Y-%m-%d').date()
+            query = query.filter(Crime.date <= date_to)
+        except (ValueError, TypeError):
+            pass
     
     if request.args.get('location'):
         location = "%{}%".format(request.args.get('location'))
@@ -246,22 +211,21 @@ def crime_list():
                            crime_types=crime_types)
 
 @app.route('/crimes/add', methods=['GET', 'POST'])
-@login_required
+@require_login
 @role_required('officer')
 def add_crime():
     form = CrimeForm()
     
     if form.validate_on_submit():
-        crime = Crime(
-            type=form.type.data,
-            description=form.description.data,
-            date=form.date.data,
-            time=form.time.data,
-            location=form.location.data,
-            latitude=form.latitude.data,
-            longitude=form.longitude.data,
-            status=form.status.data
-        )
+        crime = Crime()
+        crime.type = form.type.data
+        crime.description = form.description.data
+        crime.date = form.date.data
+        crime.time = form.time.data
+        crime.location = form.location.data
+        crime.latitude = form.latitude.data
+        crime.longitude = form.longitude.data
+        crime.status = form.status.data
         
         db.session.add(crime)
         db.session.commit()
@@ -271,7 +235,7 @@ def add_crime():
     return render_template('crime/add.html', title='Add Crime Record', form=form)
 
 @app.route('/crimes/<int:id>')
-@login_required
+@require_login
 def view_crime(id):
     crime = Crime.query.get_or_404(id)
     
@@ -292,7 +256,7 @@ def view_crime(id):
                           evidence=evidence)
 
 @app.route('/crimes/<int:id>/edit', methods=['GET', 'POST'])
-@login_required
+@require_login
 @role_required('officer')
 def edit_crime(id):
     crime = Crime.query.get_or_404(id)
@@ -326,7 +290,7 @@ def edit_crime(id):
 
 # Criminal routes
 @app.route('/criminals')
-@login_required
+@require_login
 def criminal_list():
     form = CriminalSearchForm()
     
@@ -359,22 +323,21 @@ def criminal_list():
                           form=form)
 
 @app.route('/criminals/add', methods=['GET', 'POST'])
-@login_required
+@require_login
 @role_required('officer')
 def add_criminal():
     form = CriminalForm()
     
     if form.validate_on_submit():
-        criminal = Criminal(
-            name=form.name.data,
-            alias=form.alias.data,
-            gender=form.gender.data,
-            date_of_birth=form.date_of_birth.data,
-            address=form.address.data,
-            nationality=form.nationality.data,
-            identification_marks=form.identification_marks.data,
-            photo_url=form.photo_url.data
-        )
+        criminal = Criminal()
+        criminal.name = form.name.data
+        criminal.alias = form.alias.data
+        criminal.gender = form.gender.data
+        criminal.date_of_birth = form.date_of_birth.data
+        criminal.address = form.address.data
+        criminal.nationality = form.nationality.data
+        criminal.identification_marks = form.identification_marks.data
+        criminal.photo_url = form.photo_url.data
         
         db.session.add(criminal)
         db.session.commit()
@@ -384,7 +347,7 @@ def add_criminal():
     return render_template('criminal/add.html', title='Add Criminal Record', form=form)
 
 @app.route('/criminals/<int:id>')
-@login_required
+@require_login
 def view_criminal(id):
     criminal = Criminal.query.get_or_404(id)
     
@@ -397,7 +360,7 @@ def view_criminal(id):
                           crimes=crimes)
 
 @app.route('/criminals/<int:id>/edit', methods=['GET', 'POST'])
-@login_required
+@require_login
 @role_required('officer')
 def edit_criminal(id):
     criminal = Criminal.query.get_or_404(id)
@@ -430,40 +393,36 @@ def edit_criminal(id):
     return render_template('criminal/add.html', title='Edit Criminal Record', form=form)
 
 @app.route('/criminals/<int:criminal_id>/add_crime/<int:crime_id>', methods=['POST'])
-@login_required
+@require_login
 @role_required('officer')
 def link_criminal_to_crime(criminal_id, crime_id):
     criminal = Criminal.query.get_or_404(criminal_id)
     crime = Crime.query.get_or_404(crime_id)
     
-    # Check if the relationship already exists
-    existing = CriminalCrime.query.filter_by(
+    # Check if the link already exists
+    existing_link = CriminalCrime.query.filter_by(
         criminal_id=criminal_id, crime_id=crime_id).first()
+    if existing_link:
+        flash('This criminal is already linked to this crime.', 'warning')
+        return redirect(url_for('view_crime', id=crime_id))
     
-    if not existing:
-        role = request.form.get('role', 'suspect')
-        criminal_crime = CriminalCrime(
-            criminal_id=criminal_id,
-            crime_id=crime_id,
-            role=role
-        )
-        db.session.add(criminal_crime)
-        db.session.commit()
-        flash(f'Criminal {criminal.name} linked to Crime #{crime.id} successfully!', 'success')
-    else:
-        flash('Criminal is already linked to this crime.', 'warning')
+    # Create a new link
+    link = CriminalCrime()
+    link.criminal_id = criminal_id
+    link.crime_id = crime_id
+    link.role = request.form.get('role', 'suspect')
     
+    db.session.add(link)
+    db.session.commit()
+    
+    flash('Criminal linked to crime successfully!', 'success')
     return redirect(url_for('view_crime', id=crime_id))
 
-# Case management routes
+# Case routes
 @app.route('/cases')
-@login_required
+@require_login
 def case_list():
     form = CaseSearchForm()
-    
-    # Populate officer dropdown
-    officers = User.query.filter(User.role.in_(['admin', 'officer'])).all()
-    form.officer_id.choices = [(0, 'All Officers')] + [(o.id, f"{o.first_name} {o.last_name}") for o in officers]
     
     page = request.args.get('page', 1, type=int)
     query = Case.query
@@ -482,13 +441,19 @@ def case_list():
     if request.args.get('priority') and request.args.get('priority') != '':
         query = query.filter(Case.priority == request.args.get('priority'))
     
-    if request.args.get('officer_id') and request.args.get('officer_id') != '0':
-        officer_id = int(request.args.get('officer_id'))
-        query = query.filter(Case.officer_id == officer_id)
+    if request.args.get('officer_id') and request.args.get('officer_id') != '':
+        try:
+            officer_id = int(request.args.get('officer_id'))
+            if officer_id > 0:  # Skip the "All Officers" option
+                query = query.filter(Case.officer_id == officer_id)
+        except (ValueError, TypeError):
+            pass
     
-    # Add additional restrictions based on user role
-    if not current_user.is_admin():
-        query = query.filter(Case.officer_id == current_user.id)
+    # Get all officers for the filter dropdown
+    officers = User.query.filter(User.role.in_(['admin', 'officer'])).all()
+    
+    # Prepare the choices for the officer selection dropdown
+    form.officer_id.choices = [(0, 'All Officers')] + [(o.id, f"{o.first_name or ''} {o.last_name or ''} ({o.username})") for o in officers]
     
     cases = query.order_by(Case.updated_at.desc()).paginate(
         page=page, per_page=10, error_out=False)
@@ -499,82 +464,70 @@ def case_list():
                           form=form)
 
 @app.route('/cases/add', methods=['GET', 'POST'])
-@login_required
+@require_login
 @role_required('officer')
 def add_case():
     form = CaseForm()
     
-    # Populate dropdown options
+    # Populate the crime and officer selection dropdowns
     crimes = Crime.query.all()
-    form.crime_id.choices = [(c.id, f"{c.type} - {c.date} at {c.location}") for c in crimes]
+    form.crime_id.choices = [(c.id, f"#{c.id}: {c.type} - {c.location}") for c in crimes]
     
     officers = User.query.filter(User.role.in_(['admin', 'officer'])).all()
-    form.officer_id.choices = [(o.id, f"{o.first_name} {o.last_name}") for o in officers]
+    form.officer_id.choices = [(o.id, f"{o.first_name or ''} {o.last_name or ''} ({o.username})") for o in officers]
     
     if form.validate_on_submit():
-        case = Case(
-            title=form.title.data,
-            description=form.description.data,
-            status=form.status.data,
-            priority=form.priority.data,
-            crime_id=form.crime_id.data,
-            officer_id=form.officer_id.data
-        )
+        case = Case()
+        case.title = form.title.data
+        case.description = form.description.data
+        case.status = form.status.data
+        case.priority = form.priority.data
+        case.crime_id = form.crime_id.data
+        case.officer_id = form.officer_id.data
         
         db.session.add(case)
         db.session.commit()
         flash('Case created successfully!', 'success')
         return redirect(url_for('case_list'))
     
-    return render_template('case/add.html', title='Create New Case', form=form)
+    return render_template('case/add.html', title='Create Case', form=form)
 
 @app.route('/cases/<int:id>')
-@login_required
+@require_login
 def view_case(id):
     case = Case.query.get_or_404(id)
-    
-    # Check permission
-    if not current_user.is_admin() and case.officer_id != current_user.id:
-        abort(403)
-    
-    # Get related crime
-    crime = Crime.query.get(case.crime_id) if case.crime_id else None
-    
-    # Get assigned officer
-    officer = User.query.get(case.officer_id) if case.officer_id else None
     
     # Get case notes
     notes = CaseNote.query.filter_by(case_id=id).order_by(CaseNote.created_at.desc()).all()
     
-    # Note form
+    # Create a form for adding new notes
     note_form = CaseNoteForm()
     
     return render_template('case/view.html',
-                          title=f'Case - {case.title}',
+                          title=f'Case: {case.title}',
                           case=case,
-                          crime=crime,
-                          officer=officer,
                           notes=notes,
                           note_form=note_form)
 
 @app.route('/cases/<int:id>/edit', methods=['GET', 'POST'])
-@login_required
+@require_login
 @role_required('officer')
 def edit_case(id):
     case = Case.query.get_or_404(id)
     
-    # Check permission
-    if not current_user.is_admin() and case.officer_id != current_user.id:
-        abort(403)
+    # Check if the current user is authorized to edit this case
+    if not current_user.is_admin() and current_user.id != case.officer_id:
+        flash('You are not authorized to edit this case.', 'danger')
+        return redirect(url_for('view_case', id=case.id))
     
     form = CaseForm()
     
-    # Populate dropdown options
+    # Populate the crime and officer selection dropdowns
     crimes = Crime.query.all()
-    form.crime_id.choices = [(c.id, f"{c.type} - {c.date} at {c.location}") for c in crimes]
+    form.crime_id.choices = [(c.id, f"#{c.id}: {c.type} - {c.location}") for c in crimes]
     
     officers = User.query.filter(User.role.in_(['admin', 'officer'])).all()
-    form.officer_id.choices = [(o.id, f"{o.first_name} {o.last_name}") for o in officers]
+    form.officer_id.choices = [(o.id, f"{o.first_name or ''} {o.last_name or ''} ({o.username})") for o in officers]
     
     if form.validate_on_submit():
         case.title = form.title.data
@@ -599,22 +552,16 @@ def edit_case(id):
     return render_template('case/add.html', title='Edit Case', form=form)
 
 @app.route('/cases/<int:id>/add_note', methods=['POST'])
-@login_required
+@require_login
 def add_case_note(id):
     case = Case.query.get_or_404(id)
-    
-    # Check permission
-    if not current_user.is_admin() and case.officer_id != current_user.id:
-        abort(403)
-    
     form = CaseNoteForm()
     
     if form.validate_on_submit():
-        note = CaseNote(
-            case_id=id,
-            user_id=current_user.id,
-            content=form.content.data
-        )
+        note = CaseNote()
+        note.case_id = id
+        note.user_id = current_user.id
+        note.content = form.content.data
         
         db.session.add(note)
         db.session.commit()
@@ -624,49 +571,35 @@ def add_case_note(id):
 
 # Victim routes
 @app.route('/victims')
-@login_required
+@require_login
 def victim_list():
     page = request.args.get('page', 1, type=int)
-    search = request.args.get('search', '')
-    
-    query = Victim.query
-    
-    if search:
-        search = f"%{search}%"
-        query = query.filter(or_(
-            Victim.name.like(search),
-            Victim.contact.like(search),
-            Victim.address.like(search)
-        ))
-    
-    victims = query.order_by(Victim.name).paginate(
+    victims = Victim.query.order_by(Victim.name).paginate(
         page=page, per_page=10, error_out=False)
     
     return render_template('victim/list.html',
                           title='Victim Records',
-                          victims=victims,
-                          search=search)
+                          victims=victims)
 
 @app.route('/victims/add', methods=['GET', 'POST'])
-@login_required
+@require_login
 @role_required('officer')
 def add_victim():
     form = VictimForm()
     
-    # Populate crime dropdown
+    # Populate the crime selection dropdown
     crimes = Crime.query.all()
-    form.crime_id.choices = [(c.id, f"{c.type} - {c.date} at {c.location}") for c in crimes]
+    form.crime_id.choices = [(c.id, f"#{c.id}: {c.type} - {c.location}") for c in crimes]
     
     if form.validate_on_submit():
-        victim = Victim(
-            name=form.name.data,
-            gender=form.gender.data,
-            age=form.age.data,
-            contact=form.contact.data,
-            address=form.address.data,
-            statement=form.statement.data,
-            crime_id=form.crime_id.data
-        )
+        victim = Victim()
+        victim.name = form.name.data
+        victim.gender = form.gender.data
+        victim.age = form.age.data
+        victim.contact = form.contact.data
+        victim.address = form.address.data
+        victim.statement = form.statement.data
+        victim.crime_id = form.crime_id.data
         
         db.session.add(victim)
         db.session.commit()
@@ -675,16 +608,24 @@ def add_victim():
     
     return render_template('victim/add.html', title='Add Victim Record', form=form)
 
+@app.route('/victims/<int:id>')
+@require_login
+def view_victim(id):
+    victim = Victim.query.get_or_404(id)
+    return render_template('victim/view.html',
+                          title=f'Victim: {victim.name}',
+                          victim=victim)
+
 @app.route('/victims/<int:id>/edit', methods=['GET', 'POST'])
-@login_required
+@require_login
 @role_required('officer')
 def edit_victim(id):
     victim = Victim.query.get_or_404(id)
     form = VictimForm()
     
-    # Populate crime dropdown
+    # Populate the crime selection dropdown
     crimes = Crime.query.all()
-    form.crime_id.choices = [(c.id, f"{c.type} - {c.date} at {c.location}") for c in crimes]
+    form.crime_id.choices = [(c.id, f"#{c.id}: {c.type} - {c.location}") for c in crimes]
     
     if form.validate_on_submit():
         victim.name = form.name.data
@@ -697,7 +638,7 @@ def edit_victim(id):
         
         db.session.commit()
         flash('Victim record updated successfully!', 'success')
-        return redirect(url_for('victim_list'))
+        return redirect(url_for('view_victim', id=victim.id))
     
     elif request.method == 'GET':
         form.name.data = victim.name
@@ -712,48 +653,34 @@ def edit_victim(id):
 
 # Witness routes
 @app.route('/witnesses')
-@login_required
+@require_login
 def witness_list():
     page = request.args.get('page', 1, type=int)
-    search = request.args.get('search', '')
-    
-    query = Witness.query
-    
-    if search:
-        search = f"%{search}%"
-        query = query.filter(or_(
-            Witness.name.like(search),
-            Witness.contact.like(search),
-            Witness.address.like(search)
-        ))
-    
-    witnesses = query.order_by(Witness.name).paginate(
+    witnesses = Witness.query.order_by(Witness.name).paginate(
         page=page, per_page=10, error_out=False)
     
     return render_template('witness/list.html',
                           title='Witness Records',
-                          witnesses=witnesses,
-                          search=search)
+                          witnesses=witnesses)
 
 @app.route('/witnesses/add', methods=['GET', 'POST'])
-@login_required
+@require_login
 @role_required('officer')
 def add_witness():
     form = WitnessForm()
     
-    # Populate crime dropdown
+    # Populate the crime selection dropdown
     crimes = Crime.query.all()
-    form.crime_id.choices = [(c.id, f"{c.type} - {c.date} at {c.location}") for c in crimes]
+    form.crime_id.choices = [(c.id, f"#{c.id}: {c.type} - {c.location}") for c in crimes]
     
     if form.validate_on_submit():
-        witness = Witness(
-            name=form.name.data,
-            contact=form.contact.data,
-            address=form.address.data,
-            statement=form.statement.data,
-            relation_to_victim=form.relation_to_victim.data,
-            crime_id=form.crime_id.data
-        )
+        witness = Witness()
+        witness.name = form.name.data
+        witness.contact = form.contact.data
+        witness.address = form.address.data
+        witness.statement = form.statement.data
+        witness.relation_to_victim = form.relation_to_victim.data
+        witness.crime_id = form.crime_id.data
         
         db.session.add(witness)
         db.session.commit()
@@ -762,16 +689,24 @@ def add_witness():
     
     return render_template('witness/add.html', title='Add Witness Record', form=form)
 
+@app.route('/witnesses/<int:id>')
+@require_login
+def view_witness(id):
+    witness = Witness.query.get_or_404(id)
+    return render_template('witness/view.html',
+                          title=f'Witness: {witness.name}',
+                          witness=witness)
+
 @app.route('/witnesses/<int:id>/edit', methods=['GET', 'POST'])
-@login_required
+@require_login
 @role_required('officer')
 def edit_witness(id):
     witness = Witness.query.get_or_404(id)
     form = WitnessForm()
     
-    # Populate crime dropdown
+    # Populate the crime selection dropdown
     crimes = Crime.query.all()
-    form.crime_id.choices = [(c.id, f"{c.type} - {c.date} at {c.location}") for c in crimes]
+    form.crime_id.choices = [(c.id, f"#{c.id}: {c.type} - {c.location}") for c in crimes]
     
     if form.validate_on_submit():
         witness.name = form.name.data
@@ -783,7 +718,7 @@ def edit_witness(id):
         
         db.session.commit()
         flash('Witness record updated successfully!', 'success')
-        return redirect(url_for('witness_list'))
+        return redirect(url_for('view_witness', id=witness.id))
     
     elif request.method == 'GET':
         form.name.data = witness.name
@@ -797,53 +732,36 @@ def edit_witness(id):
 
 # Evidence routes
 @app.route('/evidence')
-@login_required
+@require_login
 def evidence_list():
     page = request.args.get('page', 1, type=int)
-    search = request.args.get('search', '')
-    
-    query = Evidence.query
-    
-    if search:
-        search = f"%{search}%"
-        query = query.filter(or_(
-            Evidence.name.like(search),
-            Evidence.type.like(search),
-            Evidence.description.like(search),
-            Evidence.location_found.like(search),
-            Evidence.custodian.like(search),
-            Evidence.storage_location.like(search)
-        ))
-    
-    evidence_items = query.order_by(Evidence.created_at.desc()).paginate(
+    evidence_list = Evidence.query.order_by(Evidence.name).paginate(
         page=page, per_page=10, error_out=False)
     
     return render_template('evidence/list.html',
                           title='Evidence Records',
-                          evidence_items=evidence_items,
-                          search=search)
+                          evidence_list=evidence_list)
 
 @app.route('/evidence/add', methods=['GET', 'POST'])
-@login_required
+@require_login
 @role_required('officer')
 def add_evidence():
     form = EvidenceForm()
     
-    # Populate crime dropdown
+    # Populate the crime selection dropdown
     crimes = Crime.query.all()
-    form.crime_id.choices = [(c.id, f"{c.type} - {c.date} at {c.location}") for c in crimes]
+    form.crime_id.choices = [(c.id, f"#{c.id}: {c.type} - {c.location}") for c in crimes]
     
     if form.validate_on_submit():
-        evidence = Evidence(
-            name=form.name.data,
-            type=form.type.data,
-            description=form.description.data,
-            location_found=form.location_found.data,
-            collection_date=form.collection_date.data,
-            custodian=form.custodian.data,
-            storage_location=form.storage_location.data,
-            crime_id=form.crime_id.data
-        )
+        evidence = Evidence()
+        evidence.name = form.name.data
+        evidence.type = form.type.data
+        evidence.description = form.description.data
+        evidence.location_found = form.location_found.data
+        evidence.collection_date = form.collection_date.data
+        evidence.custodian = form.custodian.data
+        evidence.storage_location = form.storage_location.data
+        evidence.crime_id = form.crime_id.data
         
         db.session.add(evidence)
         db.session.commit()
@@ -852,16 +770,24 @@ def add_evidence():
     
     return render_template('evidence/add.html', title='Add Evidence Record', form=form)
 
+@app.route('/evidence/<int:id>')
+@require_login
+def view_evidence(id):
+    evidence = Evidence.query.get_or_404(id)
+    return render_template('evidence/view.html',
+                          title=f'Evidence: {evidence.name}',
+                          evidence=evidence)
+
 @app.route('/evidence/<int:id>/edit', methods=['GET', 'POST'])
-@login_required
+@require_login
 @role_required('officer')
 def edit_evidence(id):
     evidence = Evidence.query.get_or_404(id)
     form = EvidenceForm()
     
-    # Populate crime dropdown
+    # Populate the crime selection dropdown
     crimes = Crime.query.all()
-    form.crime_id.choices = [(c.id, f"{c.type} - {c.date} at {c.location}") for c in crimes]
+    form.crime_id.choices = [(c.id, f"#{c.id}: {c.type} - {c.location}") for c in crimes]
     
     if form.validate_on_submit():
         evidence.name = form.name.data
@@ -875,7 +801,7 @@ def edit_evidence(id):
         
         db.session.commit()
         flash('Evidence record updated successfully!', 'success')
-        return redirect(url_for('evidence_list'))
+        return redirect(url_for('view_evidence', id=evidence.id))
     
     elif request.method == 'GET':
         form.name.data = evidence.name
@@ -890,54 +816,51 @@ def edit_evidence(id):
     return render_template('evidence/add.html', title='Edit Evidence Record', form=form)
 
 # Police Station routes
-@app.route('/police_stations')
-@login_required
+@app.route('/stations')
+@require_login
 def station_list():
     page = request.args.get('page', 1, type=int)
-    search = request.args.get('search', '')
-    
-    query = PoliceStation.query
-    
-    if search:
-        search = f"%{search}%"
-        query = query.filter(or_(
-            PoliceStation.name.like(search),
-            PoliceStation.address.like(search),
-            PoliceStation.contact.like(search)
-        ))
-    
-    stations = query.order_by(PoliceStation.name).paginate(
+    stations = PoliceStation.query.order_by(PoliceStation.name).paginate(
         page=page, per_page=10, error_out=False)
     
-    return render_template('police/stations.html',
+    return render_template('station/list.html',
                           title='Police Stations',
-                          stations=stations,
-                          search=search)
+                          stations=stations)
 
-@app.route('/police_stations/add', methods=['GET', 'POST'])
-@login_required
+@app.route('/stations/add', methods=['GET', 'POST'])
+@require_login
 @role_required('admin')
 def add_station():
     form = PoliceStationForm()
     
     if form.validate_on_submit():
-        station = PoliceStation(
-            name=form.name.data,
-            address=form.address.data,
-            contact=form.contact.data,
-            latitude=form.latitude.data,
-            longitude=form.longitude.data
-        )
+        station = PoliceStation()
+        station.name = form.name.data
+        station.address = form.address.data
+        station.contact = form.contact.data
+        station.latitude = form.latitude.data
+        station.longitude = form.longitude.data
         
         db.session.add(station)
         db.session.commit()
         flash('Police station added successfully!', 'success')
         return redirect(url_for('station_list'))
     
-    return render_template('police/add_station.html', title='Add Police Station', form=form)
+    return render_template('station/add.html', title='Add Police Station', form=form)
 
-@app.route('/police_stations/<int:id>/edit', methods=['GET', 'POST'])
-@login_required
+@app.route('/stations/<int:id>')
+@require_login
+def view_station(id):
+    station = PoliceStation.query.get_or_404(id)
+    officers = PoliceOfficer.query.filter_by(station_id=id).all()
+    
+    return render_template('station/view.html',
+                          title=f'Police Station: {station.name}',
+                          station=station,
+                          officers=officers)
+
+@app.route('/stations/<int:id>/edit', methods=['GET', 'POST'])
+@require_login
 @role_required('admin')
 def edit_station(id):
     station = PoliceStation.query.get_or_404(id)
@@ -952,7 +875,7 @@ def edit_station(id):
         
         db.session.commit()
         flash('Police station updated successfully!', 'success')
-        return redirect(url_for('station_list'))
+        return redirect(url_for('view_station', id=station.id))
     
     elif request.method == 'GET':
         form.name.data = station.name
@@ -961,56 +884,47 @@ def edit_station(id):
         form.latitude.data = station.latitude
         form.longitude.data = station.longitude
     
-    return render_template('police/add_station.html', title='Edit Police Station', form=form)
+    return render_template('station/add.html', title='Edit Police Station', form=form)
 
 # Police Officer routes
-@app.route('/police_officers')
-@login_required
+@app.route('/officers')
+@require_login
 def officer_list():
     page = request.args.get('page', 1, type=int)
-    search = request.args.get('search', '')
-    
-    query = PoliceOfficer.query
-    
-    if search:
-        search = f"%{search}%"
-        query = query.filter(or_(
-            PoliceOfficer.name.like(search),
-            PoliceOfficer.rank.like(search),
-            PoliceOfficer.badge_number.like(search),
-            PoliceOfficer.contact.like(search)
-        ))
-    
-    officers = query.order_by(PoliceOfficer.name).paginate(
+    officers = PoliceOfficer.query.order_by(PoliceOfficer.name).paginate(
         page=page, per_page=10, error_out=False)
     
-    return render_template('police/officers.html',
+    return render_template('officer/list.html',
                           title='Police Officers',
-                          officers=officers,
-                          search=search)
+                          officers=officers)
 
-@app.route('/police_officers/add', methods=['GET', 'POST'])
-@login_required
+@app.route('/officers/add', methods=['GET', 'POST'])
+@require_login
 @role_required('admin')
 def add_officer():
     form = PoliceOfficerForm()
     
-    # Populate dropdown options
+    # Populate the station selection dropdown
     stations = PoliceStation.query.all()
     form.station_id.choices = [(s.id, s.name) for s in stations]
     
-    users = User.query.filter(User.role.in_(['admin', 'officer'])).all()
-    form.user_id.choices = [(0, 'None')] + [(u.id, u.username) for u in users]
+    # Populate the user account selection dropdown
+    # Only include users who don't already have an officer profile
+    existing_officer_users = db.session.query(PoliceOfficer.user_id).filter(PoliceOfficer.user_id != None)
+    users = User.query.filter(User.id.notin_(existing_officer_users)).all()
+    
+    # Add a None option for officers without user accounts
+    form.user_id.choices = [(0, 'None')] + [(u.id, f"{u.first_name or ''} {u.last_name or ''} ({u.username})") for u in users]
     
     if form.validate_on_submit():
-        officer = PoliceOfficer(
-            name=form.name.data,
-            rank=form.rank.data,
-            badge_number=form.badge_number.data,
-            contact=form.contact.data,
-            station_id=form.station_id.data
-        )
+        officer = PoliceOfficer()
+        officer.name = form.name.data
+        officer.rank = form.rank.data
+        officer.badge_number = form.badge_number.data
+        officer.contact = form.contact.data
+        officer.station_id = form.station_id.data
         
+        # Only set user_id if a user was selected (not the 'None' option)
         if form.user_id.data != 0:
             officer.user_id = form.user_id.data
         
@@ -1019,21 +933,35 @@ def add_officer():
         flash('Police officer added successfully!', 'success')
         return redirect(url_for('officer_list'))
     
-    return render_template('police/add_officer.html', title='Add Police Officer', form=form)
+    return render_template('officer/add.html', title='Add Police Officer', form=form)
 
-@app.route('/police_officers/<int:id>/edit', methods=['GET', 'POST'])
-@login_required
+@app.route('/officers/<int:id>')
+@require_login
+def view_officer(id):
+    officer = PoliceOfficer.query.get_or_404(id)
+    return render_template('officer/view.html',
+                          title=f'Police Officer: {officer.name}',
+                          officer=officer)
+
+@app.route('/officers/<int:id>/edit', methods=['GET', 'POST'])
+@require_login
 @role_required('admin')
 def edit_officer(id):
     officer = PoliceOfficer.query.get_or_404(id)
     form = PoliceOfficerForm()
     
-    # Populate dropdown options
+    # Populate the station selection dropdown
     stations = PoliceStation.query.all()
     form.station_id.choices = [(s.id, s.name) for s in stations]
     
-    users = User.query.filter(User.role.in_(['admin', 'officer'])).all()
-    form.user_id.choices = [(0, 'None')] + [(u.id, u.username) for u in users]
+    # Populate the user account selection dropdown
+    # Include the currently assigned user (if any) and users who don't have an officer profile
+    existing_officer_users = db.session.query(PoliceOfficer.user_id).filter(
+        PoliceOfficer.user_id != None, PoliceOfficer.id != id)
+    users = User.query.filter(User.id.notin_(existing_officer_users)).all()
+    
+    # Add a None option for officers without user accounts
+    form.user_id.choices = [(0, 'None')] + [(u.id, f"{u.first_name or ''} {u.last_name or ''} ({u.username})") for u in users]
     
     if form.validate_on_submit():
         officer.name = form.name.data
@@ -1042,6 +970,7 @@ def edit_officer(id):
         officer.contact = form.contact.data
         officer.station_id = form.station_id.data
         
+        # Only set user_id if a user was selected (not the 'None' option)
         if form.user_id.data != 0:
             officer.user_id = form.user_id.data
         else:
@@ -1049,7 +978,7 @@ def edit_officer(id):
         
         db.session.commit()
         flash('Police officer updated successfully!', 'success')
-        return redirect(url_for('officer_list'))
+        return redirect(url_for('view_officer', id=officer.id))
     
     elif request.method == 'GET':
         form.name.data = officer.name
@@ -1059,144 +988,9 @@ def edit_officer(id):
         form.station_id.data = officer.station_id
         form.user_id.data = officer.user_id if officer.user_id else 0
     
-    return render_template('police/add_officer.html', title='Edit Police Officer', form=form)
+    return render_template('officer/add.html', title='Edit Police Officer', form=form)
 
-# Analytics and Reports
-@app.route('/crime_statistics')
-@login_required
-@role_required('analyst')
-def crime_statistics():
-    # Date range filter
-    today = date.today()
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    
-    if not start_date:
-        # Default to last 12 months
-        start_date = (today - timedelta(days=365)).strftime('%Y-%m-%d')
-    
-    if not end_date:
-        end_date = today.strftime('%Y-%m-%d')
-    
-    # Convert string dates to date objects
-    start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
-    end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
-    
-    # Query crimes within date range
-    crimes = Crime.query.filter(Crime.date.between(start_date_obj, end_date_obj)).all()
-    
-    # Crime types distribution
-    crime_types = db.session.query(
-        Crime.type, func.count(Crime.id).label('count')
-    ).filter(Crime.date.between(start_date_obj, end_date_obj)) \
-     .group_by(Crime.type).order_by(desc('count')).all()
-    
-    # Monthly crime trend
-    monthly_crimes = db.session.query(
-        extract('year', Crime.date).label('year'),
-        extract('month', Crime.date).label('month'),
-        func.count(Crime.id).label('count')
-    ).filter(Crime.date.between(start_date_obj, end_date_obj)) \
-     .group_by('year', 'month').order_by('year', 'month').all()
-    
-    # Crime locations
-    crime_locations = db.session.query(
-        Crime.location, func.count(Crime.id).label('count')
-    ).filter(Crime.date.between(start_date_obj, end_date_obj)) \
-     .group_by(Crime.location).order_by(desc('count')).limit(10).all()
-    
-    # Format data for charts
-    months = []
-    counts = []
-    
-    for mc in monthly_crimes:
-        month_name = calendar.month_abbr[int(mc.month)]
-        year = int(mc.year)
-        months.append(f"{month_name} {year}")
-        counts.append(mc.count)
-    
-    # Crime type labels and data for pie chart
-    type_labels = [t.type for t in crime_types]
-    type_data = [t.count for t in crime_types]
-    
-    # Location labels and data for bar chart
-    location_labels = [l.location for l in crime_locations]
-    location_data = [l.count for l in crime_locations]
-    
-    # Crime status distribution
-    status_data = db.session.query(
-        Crime.status, func.count(Crime.id).label('count')
-    ).filter(Crime.date.between(start_date_obj, end_date_obj)) \
-     .group_by(Crime.status).all()
-    
-    status_labels = [s.status for s in status_data]
-    status_counts = [s.count for s in status_data]
-    
-    return render_template('reports/crime_statistics.html',
-                          title='Crime Statistics',
-                          start_date=start_date,
-                          end_date=end_date,
-                          total_crimes=len(crimes),
-                          months=months,
-                          counts=counts,
-                          type_labels=type_labels,
-                          type_data=type_data,
-                          location_labels=location_labels,
-                          location_data=location_data,
-                          status_labels=status_labels,
-                          status_counts=status_counts)
-
-@app.route('/crime_map')
-@login_required
-def crime_map():
-    # Get crimes with location coordinates
-    crimes = Crime.query.filter(Crime.latitude.isnot(None), Crime.longitude.isnot(None)).all()
-    
-    # Get police stations with coordinates
-    stations = PoliceStation.query.filter(PoliceStation.latitude.isnot(None), PoliceStation.longitude.isnot(None)).all()
-    
-    return render_template('reports/crime_map.html',
-                          title='Crime Map',
-                          crimes=crimes,
-                          stations=stations)
-
-@app.route('/api/crime_data')
-@login_required
-def crime_data_api():
-    """API endpoint for JSON crime data for mapping"""
-    crimes = Crime.query.filter(Crime.latitude.isnot(None), Crime.longitude.isnot(None)).all()
-    
-    data = [{
-        'id': c.id,
-        'type': c.type,
-        'date': c.date.strftime('%Y-%m-%d'),
-        'time': c.time.strftime('%H:%M:%S') if c.time else None,
-        'location': c.location,
-        'status': c.status,
-        'lat': c.latitude,
-        'lng': c.longitude
-    } for c in crimes]
-    
-    return jsonify(data)
-
-@app.route('/api/station_data')
-@login_required
-def station_data_api():
-    """API endpoint for JSON police station data for mapping"""
-    stations = PoliceStation.query.filter(PoliceStation.latitude.isnot(None), PoliceStation.longitude.isnot(None)).all()
-    
-    data = [{
-        'id': s.id,
-        'name': s.name,
-        'address': s.address,
-        'contact': s.contact,
-        'lat': s.latitude,
-        'lng': s.longitude
-    } for s in stations]
-    
-    return jsonify(data)
-
-# Error handling routes
+# Error handlers
 @app.errorhandler(404)
 def not_found_error(error):
     return render_template('404.html'), 404
@@ -1209,3 +1003,265 @@ def forbidden_error(error):
 def internal_error(error):
     db.session.rollback()
     return render_template('500.html'), 500
+
+# Map view
+@app.route('/map')
+@require_login
+def crime_map():
+    # Get crimes with coordinates
+    crimes = Crime.query.filter(Crime.latitude != None, Crime.longitude != None).all()
+    
+    # Get police stations with coordinates
+    stations = PoliceStation.query.filter(PoliceStation.latitude != None, PoliceStation.longitude != None).all()
+    
+    return render_template('map.html', title='Crime Map', crimes=crimes, stations=stations)
+
+# Analytics
+@app.route('/analytics')
+@require_login
+@role_required('analyst')
+def analytics():
+    # Time period for analysis
+    period = request.args.get('period', 'year')
+    
+    today = date.today()
+    if period == 'month':
+        start_date = date(today.year, today.month, 1)
+        title_period = f"{calendar.month_name[today.month]} {today.year}"
+    elif period == 'quarter':
+        current_quarter = (today.month - 1) // 3 + 1
+        start_month = (current_quarter - 1) * 3 + 1
+        start_date = date(today.year, start_month, 1)
+        title_period = f"Q{current_quarter} {today.year}"
+    else:  # year
+        start_date = date(today.year, 1, 1)
+        title_period = str(today.year)
+    
+    # Crime type distribution
+    crime_types = db.session.query(
+        Crime.type, func.count(Crime.id).label('count')
+    ).filter(Crime.date >= start_date).group_by(Crime.type).order_by(desc('count')).all()
+    
+    # Crime status distribution
+    crime_statuses = db.session.query(
+        Crime.status, func.count(Crime.id).label('count')
+    ).filter(Crime.date >= start_date).group_by(Crime.status).all()
+    
+    # Crime trend over time (daily for month, monthly for year/quarter)
+    if period == 'month':
+        # Daily trend for the current month
+        crime_trend = db.session.query(
+            func.date(Crime.date).label('date'),
+            func.count(Crime.id).label('count')
+        ).filter(Crime.date >= start_date).group_by('date').all()
+        
+        # Format data for charts - daily
+        days = []
+        daily_counts = []
+        
+        # Get all days in the month
+        num_days = calendar.monthrange(today.year, today.month)[1]
+        for day in range(1, num_days + 1):
+            current_date = date(today.year, today.month, day)
+            if current_date <= today:
+                days.append(day)
+                
+                # Find the count for this day
+                count = 0
+                for trend in crime_trend:
+                    if trend.date.day == day:
+                        count = trend.count
+                        break
+                
+                daily_counts.append(count)
+        
+        trend_labels = days
+        trend_data = daily_counts
+        trend_label = "Daily Crimes"
+    else:
+        # Monthly trend for quarter/year
+        crime_trend = db.session.query(
+            extract('month', Crime.date).label('month'),
+            func.count(Crime.id).label('count')
+        ).filter(Crime.date >= start_date).group_by('month').all()
+        
+        # Format data for charts - monthly
+        months = []
+        monthly_counts = []
+        
+        # Get all months in the period
+        start_month = start_date.month
+        end_month = today.month
+        for month_num in range(start_month, end_month + 1):
+            month_name = calendar.month_abbr[month_num]
+            months.append(month_name)
+            
+            # Find the count for this month
+            count = 0
+            for trend in crime_trend:
+                if int(trend.month) == month_num:
+                    count = trend.count
+                    break
+            
+            monthly_counts.append(count)
+        
+        trend_labels = months
+        trend_data = monthly_counts
+        trend_label = "Monthly Crimes"
+    
+    # Format data for charts
+    type_labels = [t.type for t in crime_types]
+    type_data = [t.count for t in crime_types]
+    
+    status_labels = [s.status.capitalize() for s in crime_statuses]
+    status_data = [s.count for s in crime_statuses]
+    
+    # Get total count
+    total_crimes = sum([t.count for t in crime_types])
+    
+    return render_template('analytics.html',
+                          title=f'Crime Analytics - {title_period}',
+                          period=period,
+                          total_crimes=total_crimes,
+                          type_labels=type_labels,
+                          type_data=type_data,
+                          status_labels=status_labels,
+                          status_data=status_data,
+                          trend_labels=trend_labels,
+                          trend_data=trend_data,
+                          trend_label=trend_label)
+
+# API routes for charts
+@app.route('/api/crime_stats')
+@require_login
+def api_crime_stats():
+    # Time period filter
+    period = request.args.get('period', 'year')
+    
+    today = date.today()
+    if period == 'month':
+        start_date = date(today.year, today.month, 1)
+    elif period == 'quarter':
+        current_quarter = (today.month - 1) // 3 + 1
+        start_month = (current_quarter - 1) * 3 + 1
+        start_date = date(today.year, start_month, 1)
+    else:  # year
+        start_date = date(today.year, 1, 1)
+    
+    # Get crime stats
+    crime_types = db.session.query(
+        Crime.type, func.count(Crime.id).label('count')
+    ).filter(Crime.date >= start_date).group_by(Crime.type).order_by(desc('count')).all()
+    
+    # Format data for JSON response
+    data = {
+        'labels': [t.type for t in crime_types],
+        'datasets': [{
+            'data': [t.count for t in crime_types],
+            'backgroundColor': [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', 
+                '#FF9F40', '#8BC34A', '#607D8B', '#E91E63', '#03A9F4'
+            ]
+        }]
+    }
+    
+    return jsonify(data)
+
+@app.route('/api/crime_trend')
+@require_login
+def api_crime_trend():
+    # Time period filter
+    period = request.args.get('period', 'year')
+    
+    today = date.today()
+    if period == 'month':
+        start_date = date(today.year, today.month, 1)
+        # Daily trend for the current month
+        crime_trend = db.session.query(
+            func.date(Crime.date).label('date'),
+            func.count(Crime.id).label('count')
+        ).filter(Crime.date >= start_date).group_by('date').all()
+        
+        # Format data for charts - daily
+        days = []
+        daily_counts = []
+        
+        # Get all days in the month
+        num_days = calendar.monthrange(today.year, today.month)[1]
+        for day in range(1, num_days + 1):
+            current_date = date(today.year, today.month, day)
+            if current_date <= today:
+                days.append(str(day))
+                
+                # Find the count for this day
+                count = 0
+                for trend in crime_trend:
+                    if trend.date.day == day:
+                        count = trend.count
+                        break
+                
+                daily_counts.append(count)
+        
+        labels = days
+        data = daily_counts
+    else:
+        if period == 'quarter':
+            current_quarter = (today.month - 1) // 3 + 1
+            start_month = (current_quarter - 1) * 3 + 1
+            start_date = date(today.year, start_month, 1)
+        else:  # year
+            start_date = date(today.year, 1, 1)
+        
+        # Monthly trend for quarter/year
+        crime_trend = db.session.query(
+            extract('month', Crime.date).label('month'),
+            func.count(Crime.id).label('count')
+        ).filter(Crime.date >= start_date).group_by('month').all()
+        
+        # Format data for charts - monthly
+        months = []
+        monthly_counts = []
+        
+        # Get all months in the period
+        start_month = start_date.month
+        end_month = today.month
+        for month_num in range(start_month, end_month + 1):
+            month_name = calendar.month_abbr[month_num]
+            months.append(month_name)
+            
+            # Find the count for this month
+            count = 0
+            for trend in crime_trend:
+                if int(trend.month) == month_num:
+                    count = trend.count
+                    break
+            
+            monthly_counts.append(count)
+        
+        labels = months
+        data = monthly_counts
+    
+    # Format data for JSON response
+    response = {
+        'labels': labels,
+        'datasets': [{
+            'label': 'Crime Count',
+            'data': data,
+            'borderColor': '#36A2EB',
+            'backgroundColor': 'rgba(54, 162, 235, 0.2)',
+            'tension': 0.1
+        }]
+    }
+    
+    return jsonify(response)
+
+# Data export routes
+@app.route('/export/crimes')
+@require_login
+@role_required('analyst')
+def export_crimes():
+    # Export crime data as CSV
+    # Implementation will depend on how you want to handle file downloads
+    # For now, we'll just redirect to the crimes list
+    flash('Data export feature is not implemented yet.', 'warning')
+    return redirect(url_for('crime_list'))

@@ -112,11 +112,17 @@
                     {% if current_user.is_authenticated %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-user-circle me-1"></i> {{ current_user.username }}
+                            <i class="fas fa-user-circle me-1"></i> 
+                            {% if current_user.first_name or current_user.last_name %}
+                                {{ current_user.first_name }} {{ current_user.last_name }}
+                            {% elif current_user.email %}
+                                {{ current_user.email }}
+                            {% else %}
+                                User
+                            {% endif %}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="{{ url_for('user_profile', id=current_user.id) }}">My Profile</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('change_password') }}">Change Password</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('logout') }}">Log Out</a></li>
                         </ul>
@@ -154,7 +160,7 @@
     <!-- Footer -->
     <footer class="footer mt-5">
         <div class="container">
-            <p>&copy; {% now 'Y' %} Crime Management System. All rights reserved.</p>
+            <p>&copy; 2025 Crime Management System. All rights reserved.</p>
         </div>
     </footer>
 
