@@ -4,6 +4,7 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from werkzeug.middleware.proxy_fix import ProxyFix
+from flask_login import LoginManager
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -31,6 +32,16 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 
 # Initialize Flask extensions
 db.init_app(app)
+
+# Setup login manager
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access this page.'
+login_manager.login_message_category = 'info'
+
+@login_manager.user_loader
+def load_user(id):
+    return db.session.get(models.User, int(id))
 
 # Create database tables
 with app.app_context():

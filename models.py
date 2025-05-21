@@ -2,17 +2,16 @@ from app import db
 from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_dance.consumer.storage.sqla import OAuthConsumerMixin
 from sqlalchemy import UniqueConstraint
 
 # User model with role-based access control
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     
-    id = db.Column(db.String, primary_key=True)
-    username = db.Column(db.String(64), unique=True, nullable=True)
-    email = db.Column(db.String(120), unique=True, nullable=True)
-    password_hash = db.Column(db.String(256), nullable=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(64), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='admin')  # admin, officer, analyst
     first_name = db.Column(db.String(64), nullable=True)
     last_name = db.Column(db.String(64), nullable=True)
@@ -34,9 +33,7 @@ class User(UserMixin, db.Model):
         self.password_hash = generate_password_hash(password)
         
     def check_password(self, password):
-        if self.password_hash:
-            return check_password_hash(self.password_hash, password)
-        return False
+        return check_password_hash(self.password_hash, password)
     
     def is_admin(self):
         return self.role == 'admin'
@@ -48,20 +45,7 @@ class User(UserMixin, db.Model):
         return self.role == 'analyst' or self.role == 'admin'
     
     def __repr__(self):
-        return f'<User {self.email or self.id}>'
-
-# OAuth model for Replit authentication
-class OAuth(OAuthConsumerMixin, db.Model):
-    user_id = db.Column(db.String, db.ForeignKey(User.id))
-    browser_session_key = db.Column(db.String, nullable=False)
-    user = db.relationship(User)
-
-    __table_args__ = (UniqueConstraint(
-        'user_id',
-        'browser_session_key',
-        'provider',
-        name='uq_user_browser_session_key_provider',
-    ),)
+        return f'<User {self.username}>'
 
 # Police Station model
 class PoliceStation(db.Model):
