@@ -1,286 +1,89 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Crime Management System</title>
+    
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
+    
+    <!-- Font Awesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-shield-alt me-2"></i>
+                Crime Management System
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-1"></i>
+                            {{ current_user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            {% if current_user.is_admin() %}
+                            <li><a class="dropdown-item" href="{{ url_for('register') }}">Register New User</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
 
-{% block content %}
-<div class="row mb-4">
-    <div class="col">
-        <h1 class="display-5">
-            <i class="fas fa-tachometer-alt me-2"></i>
-            Dashboard
-        </h1>
-        <p class="lead">Welcome to the Crime Management System</p>
-    </div>
-</div>
+    <!-- Main Content -->
+    <main class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">
+                            <i class="fas fa-tachometer-alt me-2"></i>
+                            Dashboard
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">Welcome, {{ current_user.username }}!</h5>
+                        <p class="card-text">You've successfully logged into the Crime Management System using the MySQL Workbench-style authentication.</p>
+                        
+                        <div class="alert alert-info">
+                            <h5><i class="fas fa-info-circle me-2"></i>Authentication Info</h5>
+                            <p>This system uses a traditional username/password authentication similar to MySQL Workbench.</p>
+                            <ul>
+                                <li><strong>Username:</strong> {{ current_user.username }}</li>
+                                <li><strong>Email:</strong> {{ current_user.email }}</li>
+                                <li><strong>Role:</strong> {{ current_user.role }}</li>
+                            </ul>
+                        </div>
 
-<!-- Statistics Cards -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card bg-primary text-white h-100">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="fas fa-file-alt me-2"></i>
-                    Total Crimes
-                </h5>
-                <h2 class="display-4">{{ total_crimes|default(0) }}</h2>
-            </div>
-            <div class="card-footer d-flex">
-                <a href="{{ url_for('crime_list') }}" class="text-white text-decoration-none">
-                    View Details
-                    <i class="fas fa-arrow-right ms-2"></i>
-                </a>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-success text-white h-100">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="fas fa-folder-open me-2"></i>
-                    Active Cases
-                </h5>
-                <h2 class="display-4">{{ active_cases|default(0) }}</h2>
-            </div>
-            <div class="card-footer d-flex">
-                <a href="{{ url_for('case_list') }}" class="text-white text-decoration-none">
-                    View Details
-                    <i class="fas fa-arrow-right ms-2"></i>
-                </a>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-warning text-dark h-100">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="fas fa-calendar-alt me-2"></i>
-                    Crimes This Month
-                </h5>
-                <h2 class="display-4">{{ crimes_this_month|default(0) }}</h2>
-            </div>
-            <div class="card-footer d-flex">
-                <span class="text-dark">{{ now.strftime('%B %Y') }}</span>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-info text-white h-100">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="fas fa-chart-line me-2"></i>
-                    Crimes This Year
-                </h5>
-                <h2 class="display-4">{{ crimes_this_year|default(0) }}</h2>
-            </div>
-            <div class="card-footer d-flex">
-                <span>{{ now.year }}</span>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Charts Row -->
-<div class="row mb-4">
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0">Monthly Crime Trend</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="crimeTrendChart" height="250"></canvas>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0">Crime Types Distribution</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="crimeTypesChart" height="250"></canvas>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Recent Data Row -->
-<div class="row">
-    <div class="col-md-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0">Recent Crimes</h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th>Type</th>
-                                <th>Date</th>
-                                <th>Location</th>
-                                <th>Status</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for crime in recent_crimes|default([]) %}
-                            <tr>
-                                <td>{{ crime.type }}</td>
-                                <td>{{ crime.date.strftime('%d-%m-%Y') }}</td>
-                                <td>{{ crime.location }}</td>
-                                <td>
-                                    <span class="badge
-                                        {% if crime.status == 'reported' %}bg-secondary
-                                        {% elif crime.status == 'investigating' %}bg-primary
-                                        {% elif crime.status == 'solved' %}bg-success
-                                        {% elif crime.status == 'closed' %}bg-dark
-                                        {% endif %}">
-                                        {{ crime.status|capitalize }}
-                                    </span>
-                                </td>
-                                <td>
-                                    <a href="{{ url_for('view_crime', id=crime.id) }}" class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="5" class="text-center">No recent crimes recorded.</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                        {% if current_user.is_admin() %}
+                        <div class="mt-4">
+                            <h5>Administrator Actions</h5>
+                            <div class="d-grid gap-2 d-md-flex">
+                                <a href="{{ url_for('register') }}" class="btn btn-primary">
+                                    <i class="fas fa-user-plus me-1"></i> Register New User
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
-            <div class="card-footer">
-                <a href="{{ url_for('crime_list') }}" class="btn btn-sm btn-outline-primary">View All Crimes</a>
-            </div>
         </div>
-    </div>
-    <div class="col-md-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0">High Priority Cases</h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th>Title</th>
-                                <th>Status</th>
-                                <th>Assigned To</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for case in high_priority_cases|default([]) %}
-                            <tr>
-                                <td>{{ case.title }}</td>
-                                <td>
-                                    <span class="badge
-                                        {% if case.status == 'open' %}bg-danger
-                                        {% elif case.status == 'investigating' %}bg-warning text-dark
-                                        {% elif case.status == 'closed' %}bg-success
-                                        {% endif %}">
-                                        {{ case.status|capitalize }}
-                                    </span>
-                                </td>
-                                <td>
-                                    {% if case.assigned_officer %}
-                                    {{ case.assigned_officer.first_name }} {{ case.assigned_officer.last_name }}
-                                    {% else %}
-                                    <span class="text-muted">Not assigned</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <a href="{{ url_for('view_case', id=case.id) }}" class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-folder-open"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="4" class="text-center">No high priority cases.</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="card-footer">
-                <a href="{{ url_for('case_list') }}" class="btn btn-sm btn-outline-primary">View All Cases</a>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
+    </main>
 
-{% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Monthly Crime Trend Chart
-    var trendCtx = document.getElementById('crimeTrendChart').getContext('2d');
-    var trendChart = new Chart(trendCtx, {
-        type: 'line',
-        data: {
-            labels: {{ months|default(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])|tojson }},
-            datasets: [{
-                label: 'Crimes',
-                data: {{ counts|default([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])|tojson }},
-                backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 2,
-                tension: 0.1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        precision: 0
-                    }
-                }
-            }
-        }
-    });
-
-    // Crime Types Pie Chart
-    var typesCtx = document.getElementById('crimeTypesChart').getContext('2d');
-    var typesChart = new Chart(typesCtx, {
-        type: 'pie',
-        data: {
-            labels: {{ type_labels|default([])|tojson }},
-            datasets: [{
-                data: {{ type_data|default([])|tojson }},
-                backgroundColor: [
-                    'rgba(255, 99, 132, 0.8)',
-                    'rgba(54, 162, 235, 0.8)',
-                    'rgba(255, 206, 86, 0.8)',
-                    'rgba(75, 192, 192, 0.8)',
-                    'rgba(153, 102, 255, 0.8)',
-                    'rgba(255, 159, 64, 0.8)',
-                    'rgba(199, 199, 199, 0.8)',
-                    'rgba(83, 102, 255, 0.8)',
-                    'rgba(40, 159, 64, 0.8)',
-                    'rgba(210, 199, 199, 0.8)'
-                ],
-                borderColor: 'rgba(255, 255, 255, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'right'
-                }
-            }
-        }
-    });
-});
-</script>
-{% endblock %}
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

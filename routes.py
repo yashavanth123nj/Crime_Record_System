@@ -1,5 +1,5 @@
 from flask import render_template, redirect, url_for, flash, request, jsonify, session, abort
-from flask_login import login_required, current_user
+from flask_login import login_user, logout_user, login_required, current_user
 from urllib.parse import urlparse
 from sqlalchemy import func, extract, desc, or_
 from datetime import datetime, date, timedelta
@@ -8,15 +8,11 @@ import calendar
 from app import app, db
 from models import (User, Crime, Criminal, CriminalCrime, Case, CaseNote, 
                    Victim, Witness, Evidence, PoliceStation, PoliceOfficer)
-from forms import (EditProfileForm, ChangePasswordForm,
+from forms import (LoginForm, RegistrationForm, EditProfileForm, ChangePasswordForm,
                   CrimeForm, CrimeSearchForm, CriminalForm, CriminalSearchForm,
                   CaseForm, CaseNoteForm, CaseSearchForm, VictimForm, WitnessForm,
                   EvidenceForm, PoliceStationForm, PoliceOfficerForm)
 from utils import role_required
-from replit_auth import require_login, make_replit_blueprint
-
-# Register Replit auth blueprint
-app.register_blueprint(make_replit_blueprint(), url_prefix="/auth")
 
 # Make session permanent
 @app.before_request
@@ -28,15 +24,60 @@ def make_session_permanent():
 def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    return render_template('login.html', title='Sign In')
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and user.check_password(form.password.data):
+            login_user(user, remember=form.remember_me.data)
+            next_page = request.args.get('next')
+            if next_page:
+                # Security check to make sure we only redirect to pages within our application
+                parsed_next = urlparse(next_page)
+                if not parsed_next.netloc:
+                    return redirect(next_page)
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid username or password', 'danger')
+    
+    return render_template('login_custom.html', title='Sign In', form=form)
 
 @app.route('/logout')
 def logout():
-    return redirect(url_for('replit_auth.logout'))
+    logout_user()
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('login'))
+
+@app.route('/register', methods=['GET', 'POST'])
+@login_required
+@role_required('admin')
+def register():
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        user = User(
+            username=form.username.data,
+            email=form.email.data,
+            first_name=form.first_name.data,
+            last_name=form.last_name.data,
+            role=form.role.data
+        )
+        user.set_password(form.password.data)
+        db.session.add(user)
+        db.session.commit()
+        flash(f'User {form.username.data} has been created successfully!', 'success')
+        return redirect(url_for('user_list'))
+    
+    return render_template('user/register.html', title='Register New User', form=form)
 
 # User management routes
 @app.route('/users')
-@require_login
+@login_required
 @role_required('admin')
 def user_list():
     users = User.query.all()

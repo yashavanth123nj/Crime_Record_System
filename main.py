@@ -1,5 +1,5 @@
 from app import app
-import routes  # Import routes to register them with Flask
 
+# This file is used by Gunicorn to start the application
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
