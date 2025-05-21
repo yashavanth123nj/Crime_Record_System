@@ -5,7 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
-from forms import LoginForm, RegisterForm
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -30,13 +30,14 @@ login_manager.login_view = 'login'
 login_manager.login_message = 'Please log in to access this page.'
 login_manager.login_message_category = 'info'
 
-# User model
+# User model for authentication
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
-    role = db.Column(db.String(20), default='user')  # 'admin', 'user', etc.
+    role = db.Column(db.String(20), default='user')  # 'admin', 'officer', 'analyst'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -46,72 +47,20 @@ class User(UserMixin, db.Model):
     
     def is_admin(self):
         return self.role == 'admin'
+        
+    def is_officer(self):
+        return self.role == 'officer'
+        
+    def is_analyst(self):
+        return self.role == 'analyst'
     
     def __repr__(self):
         return f'<User {self.username}>'
 
+# User loader for Flask-Login
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
-
-# Routes
-@app.route('/')
-def index():
-    if current_user.is_authenticated:
-        return render_template('dashboard.html')
-    return redirect(url_for('login'))
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    
-    form = LoginForm()
-    if form.validate_on_submit():
-        user = User.query.filter_by(username=form.username.data).first()
-        if user and user.check_password(form.password.data):
-            login_user(user, remember=form.remember_me.data)
-            next_page = request.args.get('next')
-            if next_page:
-                return redirect(next_page)
-            return redirect(url_for('index'))
-        else:
-            flash('Invalid username or password', 'danger')
-    
-    return render_template('login_custom.html', title='Sign In', form=form)
-
-@app.route('/logout')
-def logout():
-    logout_user()
-    flash('You have been logged out.', 'info')
-    return redirect(url_for('login'))
-
-@app.route('/register', methods=['GET', 'POST'])
-@login_required
-def register():
-    if not current_user.is_admin():
-        flash('You need admin privileges to register new users.', 'danger')
-        return redirect(url_for('index'))
-    
-    form = RegisterForm()
-    if form.validate_on_submit():
-        user = User(
-            username=form.username.data,
-            email=form.email.data,
-            role=form.role.data
-        )
-        user.set_password(form.password.data)
-        db.session.add(user)
-        db.session.commit()
-        flash(f'User {form.username.data} has been created successfully!', 'success')
-        return redirect(url_for('index'))
-    
-    return render_template('register.html', title='Register New User', form=form)
-
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    return render_template('dashboard.html', title='Dashboard')
 
 # Create database tables
 with app.app_context():
@@ -124,10 +73,7 @@ with app.app_context():
             email='admin@example.com',
             role='admin'
         )
-        admin.set_password('admin123')
+        admin.set_password('password')
         db.session.add(admin)
         db.session.commit()
-        logging.info("Created default admin user: admin/admin123")
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+        logging.info("Created default admin user: admin/password")

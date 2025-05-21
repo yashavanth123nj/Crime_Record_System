@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import abort
+from flask import flash, redirect, url_for
 from flask_login import current_user
 
 def role_required(role):
@@ -10,16 +10,20 @@ def role_required(role):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            if not current_user.is_authenticated:
-                abort(401)  # Unauthorized
+            # Admin can access everything
+            if current_user.role == 'admin':
+                return f(*args, **kwargs)
             
-            if role == 'admin' and not current_user.is_admin():
-                abort(403)  # Forbidden
-            elif role == 'officer' and not current_user.is_officer():
-                abort(403)
-            elif role == 'analyst' and not current_user.is_analyst():
-                abort(403)
-                
+            # Officer can access officer and analyst pages
+            if role == 'officer' and current_user.role != 'officer':
+                flash('You need officer privileges to access this page.', 'danger')
+                return redirect(url_for('dashboard'))
+            
+            # Analyst can only access analyst pages
+            if role == 'analyst' and current_user.role != 'analyst':
+                flash('You need analyst privileges to access this page.', 'danger')
+                return redirect(url_for('dashboard'))
+            
             return f(*args, **kwargs)
         return decorated_function
     return decorator
