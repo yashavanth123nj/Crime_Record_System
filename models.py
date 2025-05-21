@@ -13,11 +13,16 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(64), unique=True, nullable=True)
     email = db.Column(db.String(120), unique=True, nullable=True)
     password_hash = db.Column(db.String(256), nullable=True)
-    role = db.Column(db.String(20), nullable=False, default='officer')  # admin, officer, analyst
+    role = db.Column(db.String(20), nullable=False, default='admin')  # admin, officer, analyst
     first_name = db.Column(db.String(64), nullable=True)
     last_name = db.Column(db.String(64), nullable=True)
     profile_image_url = db.Column(db.String(255), nullable=True)
-    is_active = db.Column(db.Boolean, default=True)
+    active = db.Column(db.Boolean, default=True)
+    
+    # UserMixin property override
+    @property
+    def is_active(self):
+        return self.active
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

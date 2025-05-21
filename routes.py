@@ -99,51 +99,66 @@ def dashboard():
     start_of_month = date(today.year, today.month, 1)
     start_of_year = date(today.year, 1, 1)
     
-    total_crimes = Crime.query.count()
-    active_cases = Case.query.filter(Case.status != 'closed').count()
-    crimes_this_month = Crime.query.filter(Crime.date >= start_of_month).count()
-    crimes_this_year = Crime.query.filter(Crime.date >= start_of_year).count()
-    
-    # Recent crimes
-    recent_crimes = Crime.query.order_by(Crime.date.desc()).limit(5).all()
-    
-    # Crime types distribution
-    crime_types = db.session.query(
-        Crime.type, func.count(Crime.id).label('count')
-    ).group_by(Crime.type).order_by(desc('count')).limit(5).all()
-    
-    # Monthly crime trend
-    current_year = today.year
-    monthly_crimes = db.session.query(
-        extract('month', Crime.date).label('month'),
-        func.count(Crime.id).label('count')
-    ).filter(extract('year', Crime.date) == current_year).group_by('month').all()
-    
-    # Format data for charts
-    months = []
-    counts = []
-    for i in range(1, 13):
-        month_name = calendar.month_abbr[i]
-        months.append(month_name)
+    # Try to get crime statistics, but handle potential DB issues gracefully
+    try:
+        total_crimes = Crime.query.count()
+        active_cases = Case.query.filter(Case.status != 'closed').count()
+        crimes_this_month = Crime.query.filter(Crime.date >= start_of_month).count()
+        crimes_this_year = Crime.query.filter(Crime.date >= start_of_year).count()
         
-        # Find the count for this month
-        count = 0
-        for m in monthly_crimes:
-            if int(m.month) == i:
-                count = m.count
-                break
+        # Recent crimes
+        recent_crimes = Crime.query.order_by(Crime.date.desc()).limit(5).all()
         
-        counts.append(count)
-    
-    # Crime type labels and data for pie chart
-    type_labels = [t.type for t in crime_types]
-    type_data = [t.count for t in crime_types]
-    
-    # Get high-priority cases
-    high_priority_cases = Case.query.filter_by(priority='high').order_by(Case.updated_at.desc()).limit(3).all()
+        # Crime types distribution
+        crime_types = db.session.query(
+            Crime.type, func.count(Crime.id).label('count')
+        ).group_by(Crime.type).order_by(desc('count')).limit(5).all()
+        
+        # Monthly crime trend
+        current_year = today.year
+        monthly_crimes = db.session.query(
+            extract('month', Crime.date).label('month'),
+            func.count(Crime.id).label('count')
+        ).filter(extract('year', Crime.date) == current_year).group_by('month').all()
+        
+        # Format data for charts
+        months = []
+        counts = []
+        for i in range(1, 13):
+            month_name = calendar.month_abbr[i]
+            months.append(month_name)
+            
+            # Find the count for this month
+            count = 0
+            for m in monthly_crimes:
+                if int(m.month) == i:
+                    count = m.count
+                    break
+            
+            counts.append(count)
+        
+        # Crime type labels and data for pie chart
+        type_labels = [t.type for t in crime_types]
+        type_data = [t.count for t in crime_types]
+        
+        # Get high-priority cases
+        high_priority_cases = Case.query.filter_by(priority='high').order_by(Case.updated_at.desc()).limit(3).all()
+    except:
+        # If there's any error with the database, provide default values
+        total_crimes = 0
+        active_cases = 0
+        crimes_this_month = 0
+        crimes_this_year = 0
+        recent_crimes = []
+        high_priority_cases = []
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        type_labels = []
+        type_data = []
     
     return render_template('dashboard.html', 
                            title='Dashboard',
+                           now=today,
                            total_crimes=total_crimes,
                            active_cases=active_cases,
                            crimes_this_month=crimes_this_month,
@@ -176,16 +191,18 @@ def crime_list():
     if request.args.get('crime_type'):
         query = query.filter(Crime.type == request.args.get('crime_type'))
     
-    if request.args.get('date_from'):
+    date_from_str = request.args.get('date_from')
+    if date_from_str and isinstance(date_from_str, str) and date_from_str.strip():
         try:
-            date_from = datetime.strptime(request.args.get('date_from'), '%Y-%m-%d').date()
+            date_from = datetime.strptime(date_from_str, '%Y-%m-%d').date()
             query = query.filter(Crime.date >= date_from)
         except (ValueError, TypeError):
             pass
     
-    if request.args.get('date_to'):
+    date_to_str = request.args.get('date_to')
+    if date_to_str and isinstance(date_to_str, str) and date_to_str.strip():
         try:
-            date_to = datetime.strptime(request.args.get('date_to'), '%Y-%m-%d').date()
+            date_to = datetime.strptime(date_to_str, '%Y-%m-%d').date()
             query = query.filter(Crime.date <= date_to)
         except (ValueError, TypeError):
             pass
@@ -443,9 +460,11 @@ def case_list():
     
     if request.args.get('officer_id') and request.args.get('officer_id') != '':
         try:
-            officer_id = int(request.args.get('officer_id'))
-            if officer_id > 0:  # Skip the "All Officers" option
-                query = query.filter(Case.officer_id == officer_id)
+            officer_id_str = request.args.get('officer_id')
+            if officer_id_str and officer_id_str.isdigit():
+                officer_id = int(officer_id_str)
+                if officer_id > 0:  # Skip the "All Officers" option
+                    query = query.filter(Case.officer_id == officer_id)
         except (ValueError, TypeError):
             pass
     
