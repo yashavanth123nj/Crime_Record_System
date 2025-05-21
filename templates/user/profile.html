@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2>
+            <i class="fas fa-user me-2"></i>
+            User Profile
+        </h2>
+    </div>
+    <div class="col-md-4 text-end">
+        {% if current_user.id == user.id or current_user.is_admin() %}
+        <a href="{{ url_for('edit_profile', id=user.id) }}" class="btn btn-warning me-2">
+            <i class="fas fa-edit me-1"></i> Edit Profile
+        </a>
+        {% endif %}
+        
+        {% if current_user.is_admin() and user.id != current_user.id %}
+        <a href="{{ url_for('user_list') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to List
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    <!-- Profile Overview -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="profile-header">
+                <div class="text-center">
+                    <i class="fas fa-user-circle fa-5x mb-3 text-light"></i>
+                    <h3>{{ user.first_name }} {{ user.last_name }}</h3>
+                    <span class="badge {% if user.role == 'admin' %}bg-danger{% elif user.role == 'officer' %}bg-primary{% elif user.role == 'analyst' %}bg-info{% endif %}">
+                        {{ user.role|capitalize }}
+                    </span>
+                    <span class="badge {% if user.is_active %}bg-success{% else %}bg-secondary{% endif %} ms-2">
+                        {{ 'Active' if user.is_active else 'Inactive' }}
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item">
+                        <i class="fas fa-user me-2"></i>
+                        <strong>Username:</strong> {{ user.username }}
+                    </li>
+                    <li class="list-group-item">
+                        <i class="fas fa-envelope me-2"></i>
+                        <strong>Email:</strong> {{ user.email }}
+                    </li>
+                    <li class="list-group-item">
+                        <i class="fas fa-calendar-alt me-2"></i>
+                        <strong>Joined:</strong> {{ user.created_at.strftime('%d %b %Y') }}
+                    </li>
+                    <li class="list-group-item">
+                        <i class="fas fa-clock me-2"></i>
+                        <strong>Last Updated:</strong> {{ user.updated_at.strftime('%d %b %Y') }}
+                    </li>
+                </ul>
+            </div>
+            <div class="card-footer text-center">
+                {% if current_user.id == user.id %}
+                <a href="{{ url_for('change_password') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-key me-1"></i> Change Password
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Officer Information if available -->
+        {% if user.officer_profile %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-id-badge me-2"></i>
+                    Officer Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item">
+                        <i class="fas fa-user-tie me-2"></i>
+                        <strong>Rank:</strong> {{ user.officer_profile.rank }}
+                    </li>
+                    <li class="list-group-item">
+                        <i class="fas fa-id-card me-2"></i>
+                        <strong>Badge:</strong> {{ user.officer_profile.badge_number }}
+                    </li>
+                    <li class="list-group-item">
+                        <i class="fas fa-phone me-2"></i>
+                        <strong>Contact:</strong> {{ user.officer_profile.contact }}
+                    </li>
+                    <li class="list-group-item">
+                        <i class="fas fa-building me-2"></i>
+                        <strong>Station:</strong> 
+                        {% if user.officer_profile.station %}
+                        {{ user.officer_profile.station.name }}
+                        {% else %}
+                        Not assigned
+                        {% endif %}
+                    </li>
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Activity Summary -->
+    <div class="col-md-8">
+        {% if user.role in ['admin', 'officer'] %}
+        <!-- Assigned Cases -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-folder-open me-2"></i>
+                    Assigned Cases
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                {% if user.assigned_cases.count() > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Last Updated</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for case in user.assigned_cases %}
+                            <tr>
+                                <td>{{ case.id }}</td>
+                                <td>{{ case.title }}</td>
+                                <td>
+                                    <span class="badge {% if case.priority == 'low' %}bg-info{% elif case.priority == 'medium' %}bg-warning text-dark{% elif case.priority == 'high' %}bg-danger{% endif %}">
+                                        {{ case.priority }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge {% if case.status == 'open' %}bg-info{% elif case.status == 'investigating' %}bg-primary{% elif case.status == 'closed' %}bg-success{% endif %}">
+                                        {{ case.status }}
+                                    </span>
+                                </td>
+                                <td>{{ case.updated_at.strftime('%d %b %Y') }}</td>
+                                <td>
+                                    <a href="{{ url_for('view_case', id=case.id) }}" class="btn btn-sm btn-info">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="mb-0">No cases assigned to this user.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Recent Activity -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-history me-2"></i>
+                    Recent Activity
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if user.case_notes and user.case_notes|length > 0 %}
+                <div class="timeline">
+                    {% for note in user.case_notes[:5] %}
+                    <div class="case-note mb-4">
+                        <div class="note-header">
+                            <span>
+                                <a href="{{ url_for('view_case', id=note.case_id) }}">Case #{{ note.case_id }}: {{ note.case.title }}</a>
+                            </span>
+                            <span>{{ note.created_at.strftime('%d %b %Y, %H:%M') }}</span>
+                        </div>
+                        <div class="note-content">
+                            {{ note.content }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="mb-0">No recent activity recorded.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if user.role == 'admin' %}
+        <!-- System Statistics (for admins) -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-tachometer-alt me-2"></i>
+                    Administrator Responsibilities
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-primary text-white h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">User Management</h5>
+                                <p class="card-text">Create, edit, and manage system users. Assign appropriate roles and permissions.</p>
+                                <a href="{{ url_for('user_list') }}" class="btn btn-light btn-sm mt-2">
+                                    <i class="fas fa-users me-1"></i> Manage Users
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-info text-white h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">Station Management</h5>
+                                <p class="card-text">Manage police stations and assign officers to appropriate stations.</p>
+                                <a href="{{ url_for('station_list') }}" class="btn btn-light btn-sm mt-2">
+                                    <i class="fas fa-building me-1"></i> Manage Stations
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-success text-white h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">Officer Management</h5>
+                                <p class="card-text">Manage police officers, their ranks, badges, and station assignments.</p>
+                                <a href="{{ url_for('officer_list') }}" class="btn btn-light btn-sm mt-2">
+                                    <i class="fas fa-user-tie me-1"></i> Manage Officers
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-warning text-dark h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">System Analytics</h5>
+                                <p class="card-text">Review system statistics, performance metrics, and activity logs.</p>
+                                <a href="{{ url_for('crime_statistics') }}" class="btn btn-light btn-sm mt-2">
+                                    <i class="fas fa-chart-bar me-1"></i> View Statistics
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if user.role == 'analyst' %}
+        <!-- Analyst Tools -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Analyst Tools
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-info text-white h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">Crime Statistics</h5>
+                                <p class="card-text">View and analyze crime statistics, trends, and patterns.</p>
+                                <a href="{{ url_for('crime_statistics') }}" class="btn btn-light btn-sm mt-2">
+                                    <i class="fas fa-chart-bar me-1"></i> View Statistics
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-primary text-white h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">Crime Mapping</h5>
+                                <p class="card-text">Visualize crime locations and identify crime hotspots.</p>
+                                <a href="{{ url_for('crime_map') }}" class="btn btn-light btn-sm mt-2">
+                                    <i class="fas fa-map-marked-alt me-1"></i> View Crime Map
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

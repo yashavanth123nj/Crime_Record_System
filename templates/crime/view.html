@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2>
+            <i class="fas fa-file-alt me-2"></i>
+            Crime #{{ crime.id }}
+        </h2>
+    </div>
+    <div class="col-md-4 text-end">
+        {% if current_user.is_officer() %}
+        <a href="{{ url_for('edit_crime', id=crime.id) }}" class="btn btn-warning me-2">
+            <i class="fas fa-edit me-1"></i> Edit
+        </a>
+        {% endif %}
+        <a href="{{ url_for('crime_list') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to List
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Crime Details -->
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Crime Details
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Type</h6>
+                        <p>{{ crime.type }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Status</h6>
+                        <p>
+                            <span class="badge {% if crime.status == 'reported' %}bg-secondary{% elif crime.status == 'investigating' %}bg-primary{% elif crime.status == 'solved' %}bg-success{% elif crime.status == 'closed' %}bg-danger{% endif %}">
+                                {{ crime.status }}
+                            </span>
+                        </p>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Date</h6>
+                        <p>{{ crime.date.strftime('%d %b %Y') }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Time</h6>
+                        <p>{{ crime.time.strftime('%H:%M') if crime.time else 'Not specified' }}</p>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <h6 class="fw-bold">Location</h6>
+                    <p>{{ crime.location }}</p>
+                </div>
+                <div class="mb-3">
+                    <h6 class="fw-bold">Description</h6>
+                    <p>{{ crime.description }}</p>
+                </div>
+                <div class="mb-3">
+                    <h6 class="fw-bold">Recorded On</h6>
+                    <p>{{ crime.created_at.strftime('%d %b %Y %H:%M') }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Related Cases -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-folder-open me-2"></i>
+                    Related Cases
+                </h5>
+                {% if current_user.is_officer() %}
+                <a href="{{ url_for('add_case') }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus me-1"></i> Create Case
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if cases %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Case ID</th>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th>Assigned Officer</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for case in cases %}
+                            <tr>
+                                <td>{{ case.id }}</td>
+                                <td>{{ case.title }}</td>
+                                <td>
+                                    <span class="badge {% if case.status == 'open' %}bg-info{% elif case.status == 'investigating' %}bg-primary{% elif case.status == 'closed' %}bg-success{% endif %}">
+                                        {{ case.status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge {% if case.priority == 'low' %}bg-info{% elif case.priority == 'medium' %}bg-warning text-dark{% elif case.priority == 'high' %}bg-danger{% endif %}">
+                                        {{ case.priority }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% set officer = case.assigned_officer %}
+                                    {% if officer %}
+                                    {{ officer.first_name }} {{ officer.last_name }}
+                                    {% else %}
+                                    Unassigned
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('view_case', id=case.id) }}" class="btn btn-sm btn-info">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="mb-0">No cases have been created for this crime yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Map if coordinates are available -->
+        {% if crime.latitude and crime.longitude %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-map-marker-alt me-2"></i>
+                    Crime Location
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div id="crimeLocationMap" style="height: 300px;"></div>
+            </div>
+        </div>
+        
+        {% block scripts %}
+        {{ super() }}
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const map = L.map('crimeLocationMap').setView([{{ crime.latitude }}, {{ crime.longitude }}], 15);
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+                }).addTo(map);
+                
+                const crimeIcon = L.divIcon({
+                    html: '<i class="fas fa-exclamation-triangle text-danger" style="font-size: 24px;"></i>',
+                    className: 'crime-marker-icon',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+                
+                L.marker([{{ crime.latitude }}, {{ crime.longitude }}], {
+                    icon: crimeIcon
+                }).addTo(map)
+                .bindPopup("<b>{{ crime.type }}</b><br>{{ crime.location }}").openPopup();
+            });
+        </script>
+        {% endblock %}
+        {% endif %}
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="col-md-4">
+        <!-- Criminals -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-users me-2"></i>
+                    Suspects / Criminals
+                </h5>
+                {% if current_user.is_officer() %}
+                <a href="{{ url_for('add_criminal') }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus me-1"></i> Add
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if criminals %}
+                <div class="list-group">
+                    {% for criminal in criminals %}
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">
+                                <a href="{{ url_for('view_criminal', id=criminal.id) }}">{{ criminal.name }}</a>
+                            </h6>
+                            {% if criminal.alias %}
+                            <small class="text-muted">aka "{{ criminal.alias }}"</small>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex mt-2 justify-content-between">
+                            <small>{{ criminal.gender|capitalize }} {% if criminal.date_of_birth %}, {{ (crime.date.year - criminal.date_of_birth.year) }} years old{% endif %}</small>
+                            <small>{{ criminal.nationality if criminal.nationality else '' }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <p class="mb-0">No criminals linked to this crime yet.</p>
+                </div>
+                {% endif %}
+                
+                {% if current_user.is_officer() and criminals %}
+                <hr>
+                <form method="POST" action="" class="mt-3">
+                    <div class="mb-3">
+                        <label class="form-label">Link Criminal</label>
+                        <select name="criminal_id" class="form-select">
+                            {% for criminal in criminals %}
+                            <option value="{{ criminal.id }}">{{ criminal.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <select name="role" class="form-select">
+                            <option value="suspect">Suspect</option>
+                            <option value="accomplice">Accomplice</option>
+                            <option value="convicted">Convicted</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary">Link to Crime</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Victims -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-injured me-2"></i>
+                    Victims
+                </h5>
+                {% if current_user.is_officer() %}
+                <a href="{{ url_for('add_victim') }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus me-1"></i> Add
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if victims %}
+                <div class="list-group list-group-flush">
+                    {% for victim in victims %}
+                    <div class="list-group-item">
+                        <h6 class="mb-1">{{ victim.name }}</h6>
+                        <div class="d-flex justify-content-between mb-1">
+                            <small>{{ victim.gender|capitalize }}{% if victim.age %}, {{ victim.age }} years old{% endif %}</small>
+                            <small>
+                                {% if victim.contact %}
+                                <i class="fas fa-phone-alt me-1"></i> {{ victim.contact }}
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% if victim.statement %}
+                        <small class="d-block text-muted mt-2">
+                            <i class="fas fa-quote-left me-1"></i>
+                            {{ victim.statement[:100] }}{% if victim.statement|length > 100 %}...{% endif %}
+                        </small>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <p class="mb-0">No victims recorded for this crime yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Witnesses -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-eye me-2"></i>
+                    Witnesses
+                </h5>
+                {% if current_user.is_officer() %}
+                <a href="{{ url_for('add_witness') }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus me-1"></i> Add
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if witnesses %}
+                <div class="list-group list-group-flush">
+                    {% for witness in witnesses %}
+                    <div class="list-group-item">
+                        <h6 class="mb-1">{{ witness.name }}</h6>
+                        <div class="d-flex justify-content-between mb-1">
+                            <small>
+                                {% if witness.relation_to_victim %}
+                                {{ witness.relation_to_victim }} of victim
+                                {% endif %}
+                            </small>
+                            <small>
+                                {% if witness.contact %}
+                                <i class="fas fa-phone-alt me-1"></i> {{ witness.contact }}
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% if witness.statement %}
+                        <small class="d-block text-muted mt-2">
+                            <i class="fas fa-quote-left me-1"></i>
+                            {{ witness.statement[:100] }}{% if witness.statement|length > 100 %}...{% endif %}
+                        </small>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <p class="mb-0">No witnesses recorded for this crime yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Evidence -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-fingerprint me-2"></i>
+                    Evidence
+                </h5>
+                {% if current_user.is_officer() %}
+                <a href="{{ url_for('add_evidence') }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus me-1"></i> Add
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if evidence %}
+                <div class="list-group list-group-flush">
+                    {% for item in evidence %}
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">{{ item.name }}</h6>
+                            <small class="text-muted">{{ item.type }}</small>
+                        </div>
+                        <p class="mb-1 small">{{ item.description }}</p>
+                        <div class="d-flex justify-content-between mt-2">
+                            <small>
+                                <i class="fas fa-map-marker-alt me-1"></i> {{ item.location_found }}
+                            </small>
+                            <small>
+                                <i class="fas fa-calendar-alt me-1"></i> 
+                                {{ item.collection_date.strftime('%d %b %Y') if item.collection_date else 'Unknown date' }}
+                            </small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <p class="mb-0">No evidence recorded for this crime yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

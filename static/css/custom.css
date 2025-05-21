@@ -1,0 +1,195 @@
+/* Custom styles for the Crime Management System */
+
+/* Custom colors using Bootstrap variables */
+:root {
+    --primary-dark: #1a2035;
+    --secondary-dark: #273246;
+}
+
+/* Dashboard cards */
+.stat-card {
+    border-radius: 8px;
+    border: none;
+    transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.stat-card .card-body {
+    padding: 1.5rem;
+}
+
+.stat-icon {
+    font-size: 2.5rem;
+    margin-right: 1rem;
+}
+
+/* Table improvements */
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+/* Crime type badges */
+.badge-theft {
+    background-color: var(--bs-warning);
+    color: var(--bs-dark);
+}
+
+.badge-assault {
+    background-color: var(--bs-danger);
+}
+
+.badge-fraud {
+    background-color: var(--bs-info);
+}
+
+.badge-robbery {
+    background-color: var(--bs-secondary);
+}
+
+.badge-homicide {
+    background-color: var(--bs-dark);
+}
+
+/* Case status badges */
+.badge-open {
+    background-color: var(--bs-info);
+}
+
+.badge-investigating {
+    background-color: var(--bs-primary);
+}
+
+.badge-closed {
+    background-color: var(--bs-success);
+}
+
+/* Case priority badges */
+.badge-low {
+    background-color: var(--bs-info);
+}
+
+.badge-medium {
+    background-color: var(--bs-warning);
+    color: var(--bs-dark);
+}
+
+.badge-high {
+    background-color: var(--bs-danger);
+}
+
+/* Maps */
+#crimeMap {
+    height: 600px;
+    width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1;
+}
+
+/* Search forms */
+.search-form {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+}
+
+/* Case notes */
+.case-note {
+    border-left: 4px solid var(--bs-primary);
+    padding-left: 1rem;
+    margin-bottom: 1rem;
+}
+
+.case-note .note-header {
+    display: flex;
+    justify-content: space-between;
+    color: var(--bs-secondary);
+    margin-bottom: 0.5rem;
+}
+
+/* Profile page */
+.profile-header {
+    background-color: var(--bs-dark);
+    padding: 2rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+}
+
+.profile-header h2 {
+    color: white;
+    margin-bottom: 0.5rem;
+}
+
+.profile-header p {
+    color: var(--bs-light);
+    margin-bottom: 0.25rem;
+}
+
+/* Dashboard charts */
+.chart-container {
+    height: 300px;
+    margin-bottom: 1.5rem;
+}
+
+/* Evidence tags */
+.evidence-tag {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+    background-color: var(--bs-light);
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+/* Criminals profile */
+.criminal-profile-img {
+    width: 150px;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 4px solid var(--bs-light);
+}
+
+/* Scrollable content */
+.scrollable-content {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Crime statistics filters */
+.date-filter {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* Footer */
+.footer {
+    margin-top: 2rem;
+    padding: 1rem 0;
+    background-color: var(--bs-dark);
+    color: var(--bs-light);
+    text-align: center;
+}
+
+/* Responsive design adjustments */
+@media (max-width: 767.98px) {
+    .stat-card {
+        margin-bottom: 1rem;
+    }
+    
+    .chart-container {
+        height: 250px;
+    }
+    
+    #crimeMap {
+        height: 400px;
+    }
+}

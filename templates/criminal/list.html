@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2>
+            <i class="fas fa-users me-2"></i>
+            Criminal Records
+        </h2>
+    </div>
+    {% if current_user.is_officer() %}
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('add_criminal') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Add Criminal Record
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Search Form -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-search me-2"></i>
+            Search Criminals
+        </h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('criminal_list') }}">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    {{ form.search_term.label(class="form-label") }}
+                    {{ form.search_term(class="form-control", placeholder="Search by name, alias, address, etc.", value=request.args.get('search_term', '')) }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    {{ form.gender.label(class="form-label") }}
+                    {{ form.gender(class="form-select") }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    {{ form.nationality.label(class="form-label") }}
+                    {{ form.nationality(class="form-control", placeholder="Filter by nationality", value=request.args.get('nationality', '')) }}
+                </div>
+            </div>
+            <div class="text-end">
+                <a href="{{ url_for('criminal_list') }}" class="btn btn-secondary me-2">
+                    <i class="fas fa-redo me-1"></i> Reset
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search me-1"></i> Search
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>
+            Criminal Records
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        {% if criminals.items %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Alias</th>
+                        <th>Gender</th>
+                        <th>Date of Birth</th>
+                        <th>Nationality</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for criminal in criminals.items %}
+                    <tr>
+                        <td>{{ criminal.id }}</td>
+                        <td>{{ criminal.name }}</td>
+                        <td>{{ criminal.alias }}</td>
+                        <td>{{ criminal.gender|capitalize if criminal.gender else '' }}</td>
+                        <td>{{ criminal.date_of_birth.strftime('%d %b %Y') if criminal.date_of_birth else '' }}</td>
+                        <td>{{ criminal.nationality }}</td>
+                        <td>
+                            <a href="{{ url_for('view_criminal', id=criminal.id) }}" class="btn btn-sm btn-info">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            {% if current_user.is_officer() %}
+                            <a href="{{ url_for('edit_criminal', id=criminal.id) }}" class="btn btn-sm btn-warning">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <nav aria-label="Page navigation" class="p-3">
+            <ul class="pagination justify-content-center">
+                {% if criminals.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('criminal_list', page=criminals.prev_num, search_term=request.args.get('search_term', ''), gender=request.args.get('gender', ''), nationality=request.args.get('nationality', '')) }}">
+                        Previous
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Previous</span>
+                </li>
+                {% endif %}
+                
+                {% for page_num in criminals.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        {% if criminals.page == page_num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('criminal_list', page=page_num, search_term=request.args.get('search_term', ''), gender=request.args.get('gender', ''), nationality=request.args.get('nationality', '')) }}">
+                                {{ page_num }}
+                            </a>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if criminals.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('criminal_list', page=criminals.next_num, search_term=request.args.get('search_term', ''), gender=request.args.get('gender', ''), nationality=request.args.get('nationality', '')) }}">
+                        Next
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Next</span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-users fa-3x mb-3 text-secondary"></i>
+            <p class="lead">No criminal records found matching your criteria.</p>
+            {% if request.args %}
+            <a href="{{ url_for('criminal_list') }}" class="btn btn-outline-primary">
+                <i class="fas fa-redo me-1"></i> Reset Filters
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

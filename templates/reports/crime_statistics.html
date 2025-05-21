@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2>
+            <i class="fas fa-chart-bar me-2"></i>
+            Crime Statistics
+        </h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('crime_map') }}" class="btn btn-primary">
+            <i class="fas fa-map-marked-alt me-1"></i> View Crime Map
+        </a>
+    </div>
+</div>
+
+<!-- Date Filter -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-filter me-2"></i>
+            Date Range Filter
+        </h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('crime_statistics') }}">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="start_date" class="form-label">Start Date</label>
+                    <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="end_date" class="form-label">End Date</label>
+                    <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date }}">
+                </div>
+                <div class="col-md-4 mb-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-filter me-1"></i> Apply Filter
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Stats -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-info-circle me-2"></i>
+            Summary Statistics
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-12 mb-3">
+                <div class="alert alert-primary">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="alert-heading">Period: {{ start_date }} to {{ end_date }}</h4>
+                            <p class="mb-0">Total crimes recorded during this period: <strong>{{ total_crimes }}</strong></p>
+                        </div>
+                        <div>
+                            <i class="fas fa-calendar-alt fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Grid -->
+<div class="row">
+    <!-- Monthly Trend Chart -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Monthly Crime Trend
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="monthlyTrendChart" data-labels="{{ months|tojson }}" data-values="{{ counts|tojson }}"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Crime Types Pie Chart -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>
+                    Crime Types Distribution
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="crimeTypesChart" data-labels="{{ type_labels|tojson }}" data-values="{{ type_data|tojson }}"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Crime Locations Chart -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-map-marker-alt me-2"></i>
+                    Crime Hotspots
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="locationChart" data-labels="{{ location_labels|tojson }}" data-values="{{ location_data|tojson }}"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Crime Status Chart -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-tasks me-2"></i>
+                    Crime Status Distribution
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="statusChart" data-labels="{{ status_labels|tojson }}" data-values="{{ status_counts|tojson }}"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Monthly Trend Chart
+        const monthlyTrendCtx = document.getElementById('monthlyTrendChart');
+        if (monthlyTrendCtx) {
+            const labels = JSON.parse(monthlyTrendCtx.getAttribute('data-labels'));
+            const data = JSON.parse(monthlyTrendCtx.getAttribute('data-values'));
+            createMonthlyTrendChart(monthlyTrendCtx, labels, data);
+        }
+        
+        // Crime Types Pie Chart
+        const crimeTypesCtx = document.getElementById('crimeTypesChart');
+        if (crimeTypesCtx) {
+            const labels = JSON.parse(crimeTypesCtx.getAttribute('data-labels'));
+            const data = JSON.parse(crimeTypesCtx.getAttribute('data-values'));
+            createCrimeTypesChart(crimeTypesCtx, labels, data);
+        }
+        
+        // Crime Locations Chart
+        const locationChartCtx = document.getElementById('locationChart');
+        if (locationChartCtx) {
+            const labels = JSON.parse(locationChartCtx.getAttribute('data-labels'));
+            const data = JSON.parse(locationChartCtx.getAttribute('data-values'));
+            createLocationChart(locationChartCtx, labels, data);
+        }
+        
+        // Crime Status Chart
+        const statusChartCtx = document.getElementById('statusChart');
+        if (statusChartCtx) {
+            const labels = JSON.parse(statusChartCtx.getAttribute('data-labels'));
+            const data = JSON.parse(statusChartCtx.getAttribute('data-values'));
+            createStatusChart(statusChartCtx, labels, data);
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}

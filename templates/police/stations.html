@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2>
+            <i class="fas fa-building me-2"></i>
+            Police Stations
+        </h2>
+    </div>
+    {% if current_user.is_admin() %}
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('add_station') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Add Station
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Search Form -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-search me-2"></i>
+            Search Stations
+        </h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('station_list') }}">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <input type="text" name="search" class="form-control" placeholder="Search by name, address, contact, etc." value="{{ search }}">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <a href="{{ url_for('station_list') }}" class="btn btn-secondary">
+                        <i class="fas fa-redo me-1"></i> Reset
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>
+            Station List
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        {% if stations.items %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Address</th>
+                        <th>Contact</th>
+                        <th>Officers</th>
+                        {% if current_user.is_admin() %}
+                        <th>Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for station in stations.items %}
+                    <tr>
+                        <td>{{ station.id }}</td>
+                        <td>{{ station.name }}</td>
+                        <td>{{ station.address }}</td>
+                        <td>{{ station.contact }}</td>
+                        <td>{{ station.officers.count() }}</td>
+                        {% if current_user.is_admin() %}
+                        <td>
+                            <a href="{{ url_for('edit_station', id=station.id) }}" class="btn btn-sm btn-warning">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <nav aria-label="Page navigation" class="p-3">
+            <ul class="pagination justify-content-center">
+                {% if stations.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('station_list', page=stations.prev_num, search=search) }}">
+                        Previous
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Previous</span>
+                </li>
+                {% endif %}
+                
+                {% for page_num in stations.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        {% if stations.page == page_num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('station_list', page=page_num, search=search) }}">
+                                {{ page_num }}
+                            </a>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if stations.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('station_list', page=stations.next_num, search=search) }}">
+                        Next
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Next</span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-building fa-3x mb-3 text-secondary"></i>
+            <p class="lead">No police stations found matching your criteria.</p>
+            {% if search %}
+            <a href="{{ url_for('station_list') }}" class="btn btn-outline-primary">
+                <i class="fas fa-redo me-1"></i> Reset Search
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Station Map if stations have coordinates -->
+{% set stations_with_coords = [] %}
+{% for station in stations.items %}
+    {% if station.latitude and station.longitude %}
+        {% do stations_with_coords.append(station) %}
+    {% endif %}
+{% endfor %}
+
+{% if stations_with_coords %}
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-map-marker-alt me-2"></i>
+            Station Locations
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        <div id="stationsMap" style="height: 400px;"></div>
+    </div>
+</div>
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const map = L.map('stationsMap').setView([0, 0], 2);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+        }).addTo(map);
+        
+        const stationIcon = L.divIcon({
+            html: '<i class="fas fa-building text-primary" style="font-size: 24px;"></i>',
+            className: 'station-marker-icon',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+        
+        // Add station markers
+        const stationCoords = [];
+        {% for station in stations_with_coords %}
+        L.marker([{{ station.latitude }}, {{ station.longitude }}], {
+            icon: stationIcon
+        }).addTo(map)
+        .bindPopup("<b>{{ station.name }}</b><br>{{ station.address }}<br>Contact: {{ station.contact }}");
+        
+        stationCoords.push([{{ station.latitude }}, {{ station.longitude }}]);
+        {% endfor %}
+        
+        // Auto-zoom if we have coordinates
+        if (stationCoords.length > 0) {
+            const bounds = L.latLngBounds(stationCoords);
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+    });
+</script>
+{% endblock %}
+{% endif %}
+{% endblock %}

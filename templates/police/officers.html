@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2>
+            <i class="fas fa-user-shield me-2"></i>
+            Police Officers
+        </h2>
+    </div>
+    {% if current_user.is_admin() %}
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('add_officer') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Add Officer
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Search Form -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-search me-2"></i>
+            Search Officers
+        </h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('officer_list') }}">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <input type="text" name="search" class="form-control" placeholder="Search by name, rank, badge number, etc." value="{{ search }}">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <a href="{{ url_for('officer_list') }}" class="btn btn-secondary">
+                        <i class="fas fa-redo me-1"></i> Reset
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>
+            Officer List
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        {% if officers.items %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Rank</th>
+                        <th>Badge Number</th>
+                        <th>Station</th>
+                        <th>Contact</th>
+                        {% if current_user.is_admin() %}
+                        <th>Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for officer in officers.items %}
+                    <tr>
+                        <td>{{ officer.id }}</td>
+                        <td>{{ officer.name }}</td>
+                        <td>{{ officer.rank }}</td>
+                        <td>{{ officer.badge_number }}</td>
+                        <td>{{ officer.station.name if officer.station else 'Unassigned' }}</td>
+                        <td>{{ officer.contact }}</td>
+                        {% if current_user.is_admin() %}
+                        <td>
+                            <a href="{{ url_for('edit_officer', id=officer.id) }}" class="btn btn-sm btn-warning">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <nav aria-label="Page navigation" class="p-3">
+            <ul class="pagination justify-content-center">
+                {% if officers.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('officer_list', page=officers.prev_num, search=search) }}">
+                        Previous
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Previous</span>
+                </li>
+                {% endif %}
+                
+                {% for page_num in officers.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        {% if officers.page == page_num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('officer_list', page=page_num, search=search) }}">
+                                {{ page_num }}
+                            </a>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if officers.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('officer_list', page=officers.next_num, search=search) }}">
+                        Next
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Next</span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-user-shield fa-3x mb-3 text-secondary"></i>
+            <p class="lead">No police officers found matching your criteria.</p>
+            {% if search %}
+            <a href="{{ url_for('officer_list') }}" class="btn btn-outline-primary">
+                <i class="fas fa-redo me-1"></i> Reset Search
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

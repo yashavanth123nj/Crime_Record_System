@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2>
+            <i class="fas fa-map-marked-alt me-2"></i>
+            Crime Map
+        </h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('crime_statistics') }}" class="btn btn-primary">
+            <i class="fas fa-chart-bar me-1"></i> View Crime Statistics
+        </a>
+    </div>
+</div>
+
+<!-- Map Container -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-map me-2"></i>
+            Crime Mapping
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            This map displays locations of crimes and police stations. Use the layer controls to toggle visibility.
+        </div>
+        
+        <div id="crimeMap"></div>
+        
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">About Crime Mapping</h6>
+                    </div>
+                    <div class="card-body">
+                        <p>
+                            Crime mapping is an essential tool for law enforcement agencies to visualize and analyze spatial patterns of criminal activity.
+                            This map helps identify:
+                        </p>
+                        <ul>
+                            <li>Crime hotspots and clusters</li>
+                            <li>Relationships between crime locations and geographical features</li>
+                            <li>Distribution of police stations relative to crime areas</li>
+                            <li>Areas that may need increased patrol or surveillance</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Map Statistics</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <h3>{{ crimes|length }}</h3>
+                                    <p>Crime locations mapped</p>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <h3>{{ stations|length }}</h3>
+                                    <p>Police stations mapped</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        initCrimeMap();
+    });
+</script>
+{% endblock %}
+{% endblock %}

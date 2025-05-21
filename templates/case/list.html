@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2>
+            <i class="fas fa-folder-open me-2"></i>
+            Case Management
+        </h2>
+    </div>
+    {% if current_user.is_officer() %}
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('add_case') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Create New Case
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Search Form -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-search me-2"></i>
+            Search Cases
+        </h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('case_list') }}">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    {{ form.search_term.label(class="form-label") }}
+                    {{ form.search_term(class="form-control", placeholder="Search by title or description", value=request.args.get('search_term', '')) }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    {{ form.status.label(class="form-label") }}
+                    {{ form.status(class="form-select") }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    {{ form.priority.label(class="form-label") }}
+                    {{ form.priority(class="form-select") }}
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    {{ form.officer_id.label(class="form-label") }}
+                    {{ form.officer_id(class="form-select") }}
+                </div>
+                <div class="col-md-8 text-end align-self-end">
+                    <a href="{{ url_for('case_list') }}" class="btn btn-secondary me-2">
+                        <i class="fas fa-redo me-1"></i> Reset
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-1"></i> Search
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>
+            Case List
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        {% if cases.items %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Related Crime</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Assigned Officer</th>
+                        <th>Last Updated</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for case in cases.items %}
+                    <tr>
+                        <td>{{ case.id }}</td>
+                        <td>{{ case.title }}</td>
+                        <td>
+                            {% if case.crime %}
+                            <a href="{{ url_for('view_crime', id=case.crime.id) }}">{{ case.crime.type }}</a>
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if case.priority == 'low' %}bg-info{% elif case.priority == 'medium' %}bg-warning text-dark{% elif case.priority == 'high' %}bg-danger{% endif %}">
+                                {{ case.priority }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge {% if case.status == 'open' %}bg-info{% elif case.status == 'investigating' %}bg-primary{% elif case.status == 'closed' %}bg-success{% endif %}">
+                                {{ case.status }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if case.assigned_officer %}
+                            {{ case.assigned_officer.first_name }} {{ case.assigned_officer.last_name }}
+                            {% else %}
+                            Unassigned
+                            {% endif %}
+                        </td>
+                        <td>{{ case.updated_at.strftime('%d %b %Y') }}</td>
+                        <td>
+                            <a href="{{ url_for('view_case', id=case.id) }}" class="btn btn-sm btn-info">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            {% if current_user.is_officer() and (current_user.is_admin() or case.officer_id == current_user.id) %}
+                            <a href="{{ url_for('edit_case', id=case.id) }}" class="btn btn-sm btn-warning">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <nav aria-label="Page navigation" class="p-3">
+            <ul class="pagination justify-content-center">
+                {% if cases.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('case_list', page=cases.prev_num, search_term=request.args.get('search_term', ''), status=request.args.get('status', ''), priority=request.args.get('priority', ''), officer_id=request.args.get('officer_id', '')) }}">
+                        Previous
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Previous</span>
+                </li>
+                {% endif %}
+                
+                {% for page_num in cases.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        {% if cases.page == page_num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('case_list', page=page_num, search_term=request.args.get('search_term', ''), status=request.args.get('status', ''), priority=request.args.get('priority', ''), officer_id=request.args.get('officer_id', '')) }}">
+                                {{ page_num }}
+                            </a>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if cases.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('case_list', page=cases.next_num, search_term=request.args.get('search_term', ''), status=request.args.get('status', ''), priority=request.args.get('priority', ''), officer_id=request.args.get('officer_id', '')) }}">
+                        Next
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Next</span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-folder-open fa-3x mb-3 text-secondary"></i>
+            <p class="lead">No cases found matching your criteria.</p>
+            {% if request.args %}
+            <a href="{{ url_for('case_list') }}" class="btn btn-outline-primary">
+                <i class="fas fa-redo me-1"></i> Reset Filters
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

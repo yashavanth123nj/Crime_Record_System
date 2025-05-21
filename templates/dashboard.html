@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if current_user.is_authenticated %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2>
+            <i class="fas fa-tachometer-alt me-2"></i>
+            Dashboard
+        </h2>
+        <p class="lead">Welcome to the Crime Management System, {{ current_user.first_name }}!</p>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6">
+        <div class="card stat-card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-file-alt stat-icon"></i>
+                    <div>
+                        <h5 class="card-title">Total Crimes</h5>
+                        <h2 class="card-text">{{ total_crimes }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card stat-card bg-warning text-dark">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-folder-open stat-icon"></i>
+                    <div>
+                        <h5 class="card-title">Active Cases</h5>
+                        <h2 class="card-text">{{ active_cases }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card stat-card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-calendar-alt stat-icon"></i>
+                    <div>
+                        <h5 class="card-title">This Month</h5>
+                        <h2 class="card-text">{{ crimes_this_month }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card stat-card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <i class="far fa-calendar-check stat-icon"></i>
+                    <div>
+                        <h5 class="card-title">This Year</h5>
+                        <h2 class="card-text">{{ crimes_this_year }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="row mb-4">
+    <!-- Monthly Trend Chart -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Monthly Crime Trend</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="monthlyTrendChart" data-labels="{{ months|tojson }}" data-values="{{ counts|tojson }}"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Crime Types Pie Chart -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Crime Types</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="crimeTypesChart" data-labels="{{ type_labels|tojson }}" data-values="{{ type_data|tojson }}"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Crimes and High Priority Cases -->
+<div class="row">
+    <!-- Recent Crimes -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-history me-2"></i>
+                    Recent Crimes
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                {% if recent_crimes %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Date</th>
+                                <th>Location</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for crime in recent_crimes %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('view_crime', id=crime.id) }}">{{ crime.type }}</a>
+                                </td>
+                                <td>{{ crime.date.strftime('%d %b %Y') }}</td>
+                                <td>{{ crime.location }}</td>
+                                <td>
+                                    <span class="badge {% if crime.status == 'reported' %}bg-secondary{% elif crime.status == 'investigating' %}bg-primary{% elif crime.status == 'solved' %}bg-success{% elif crime.status == 'closed' %}bg-danger{% endif %}">
+                                        {{ crime.status }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-3 text-center">
+                    <p class="mb-0">No recent crimes found.</p>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer text-end">
+                <a href="{{ url_for('crime_list') }}" class="btn btn-sm btn-primary">View All Crimes</a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- High Priority Cases -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-circle me-2 text-danger"></i>
+                    High Priority Cases
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if high_priority_cases %}
+                <div class="list-group">
+                    {% for case in high_priority_cases %}
+                    <a href="{{ url_for('view_case', id=case.id) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{{ case.title }}</h6>
+                            <small>
+                                {% if case.crime %}
+                                Related to: {{ case.crime.type }}
+                                {% endif %}
+                            </small>
+                        </div>
+                        <span class="badge bg-danger">{{ case.status }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                    <p>No high priority cases at the moment.</p>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer text-end">
+                <a href="{{ url_for('case_list') }}" class="btn btn-sm btn-primary">View All Cases</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body text-center">
+                <h1 class="display-4 mb-4">Crime Management System</h1>
+                <p class="lead">Welcome to the comprehensive platform for managing crime records, cases, and investigations.</p>
+                <hr class="my-4">
+                <p>Please log in to access the system.</p>
+                <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-sign-in-alt me-2"></i>
+                    Log In
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

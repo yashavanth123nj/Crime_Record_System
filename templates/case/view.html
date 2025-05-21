@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2>
+            <i class="fas fa-folder-open me-2"></i>
+            Case: {{ case.title }}
+        </h2>
+    </div>
+    <div class="col-md-4 text-end">
+        {% if current_user.is_officer() and (current_user.is_admin() or case.officer_id == current_user.id) %}
+        <a href="{{ url_for('edit_case', id=case.id) }}" class="btn btn-warning me-2">
+            <i class="fas fa-edit me-1"></i> Edit
+        </a>
+        {% endif %}
+        <a href="{{ url_for('case_list') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to List
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Main Case Info -->
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Case Details
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Status</h6>
+                        <p>
+                            <span class="badge {% if case.status == 'open' %}bg-info{% elif case.status == 'investigating' %}bg-primary{% elif case.status == 'closed' %}bg-success{% endif %}">
+                                {{ case.status }}
+                            </span>
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Priority</h6>
+                        <p>
+                            <span class="badge {% if case.priority == 'low' %}bg-info{% elif case.priority == 'medium' %}bg-warning text-dark{% elif case.priority == 'high' %}bg-danger{% endif %}">
+                                {{ case.priority }}
+                            </span>
+                        </p>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <h6 class="fw-bold">Description</h6>
+                    <p>{{ case.description }}</p>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Related Crime</h6>
+                        <p>
+                            {% if crime %}
+                            <a href="{{ url_for('view_crime', id=crime.id) }}">{{ crime.type }}</a>
+                            ({{ crime.date.strftime('%d %b %Y') }})
+                            {% else %}
+                            No crime linked to this case
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Assigned Officer</h6>
+                        <p>
+                            {% if officer %}
+                            {{ officer.first_name }} {{ officer.last_name }}
+                            {% else %}
+                            Unassigned
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Created</h6>
+                        <p>{{ case.created_at.strftime('%d %b %Y, %H:%M') }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Last Updated</h6>
+                        <p>{{ case.updated_at.strftime('%d %b %Y, %H:%M') }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Case Notes -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-clipboard me-2"></i>
+                    Case Notes
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if notes %}
+                <div class="timeline">
+                    {% for note in notes %}
+                    <div class="case-note mb-4">
+                        <div class="note-header">
+                            <span>{{ note.user.first_name }} {{ note.user.last_name }}</span>
+                            <span>{{ note.created_at.strftime('%d %b %Y, %H:%M') }}</span>
+                        </div>
+                        <div class="note-content">
+                            {{ note.content }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="mb-0">No notes have been added to this case yet.</p>
+                </div>
+                {% endif %}
+                
+                <!-- Add Note Form -->
+                {% if current_user.is_officer() and (current_user.is_admin() or case.officer_id == current_user.id) %}
+                <hr>
+                <h6 class="mb-3">Add New Note</h6>
+                <form method="POST" action="{{ url_for('add_case_note', id=case.id) }}">
+                    {{ note_form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ note_form.content(class="form-control", rows=3, placeholder="Enter note...") }}
+                        {% for error in note_form.content.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus me-1"></i> Add Note
+                        </button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="col-md-4">
+        <!-- Related Crime Details -->
+        {% if crime %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-file-alt me-2"></i>
+                    Related Crime
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6>{{ crime.type }}</h6>
+                <p class="mb-2">
+                    <i class="fas fa-calendar-alt me-1"></i> {{ crime.date.strftime('%d %b %Y') }}
+                    {% if crime.time %}
+                    <i class="fas fa-clock ms-3 me-1"></i> {{ crime.time.strftime('%H:%M') }}
+                    {% endif %}
+                </p>
+                <p class="mb-2">
+                    <i class="fas fa-map-marker-alt me-1"></i> {{ crime.location }}
+                </p>
+                <p class="mb-2">
+                    <i class="fas fa-info-circle me-1"></i> Status: 
+                    <span class="badge {% if crime.status == 'reported' %}bg-secondary{% elif crime.status == 'investigating' %}bg-primary{% elif crime.status == 'solved' %}bg-success{% elif crime.status == 'closed' %}bg-danger{% endif %}">
+                        {{ crime.status }}
+                    </span>
+                </p>
+                <a href="{{ url_for('view_crime', id=crime.id) }}" class="btn btn-sm btn-info">
+                    <i class="fas fa-eye me-1"></i> View Crime Details
+                </a>
+            </div>
+        </div>
+        
+        <!-- Evidence Summary -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-fingerprint me-2"></i>
+                    Related Evidence
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                {% if crime and crime.evidence.count() > 0 %}
+                <div class="list-group list-group-flush">
+                    {% for item in crime.evidence %}
+                    <div class="list-group-item">
+                        <h6 class="mb-1">{{ item.name }}</h6>
+                        <small class="text-muted">{{ item.type }}</small>
+                        <p class="mb-0 small mt-1">{{ item.description|truncate(80) }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <p class="mb-0">No evidence recorded for this case.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- People Involved -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-users me-2"></i>
+                    People Involved
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    <!-- Criminals -->
+                    {% if crime %}
+                        {% set criminals = [] %}
+                        {% for criminal_crime in crime.criminals %}
+                            {% do criminals.append(criminal_crime.criminal) %}
+                        {% endfor %}
+                        
+                        {% if criminals %}
+                        <li class="list-group-item">
+                            <h6 class="mb-2"><i class="fas fa-user-secret me-2"></i> Suspects/Criminals</h6>
+                            <div class="ms-3">
+                                {% for criminal in criminals %}
+                                <div class="mb-2">
+                                    <a href="{{ url_for('view_criminal', id=criminal.id) }}">{{ criminal.name }}</a>
+                                    {% if criminal.alias %}
+                                    <small class="text-muted">(aka "{{ criminal.alias }}")</small>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </li>
+                        {% endif %}
+                        
+                        <!-- Victims -->
+                        {% if crime.victims.count() > 0 %}
+                        <li class="list-group-item">
+                            <h6 class="mb-2"><i class="fas fa-user-injured me-2"></i> Victims</h6>
+                            <div class="ms-3">
+                                {% for victim in crime.victims %}
+                                <div class="mb-2">
+                                    {{ victim.name }}
+                                    <small class="text-muted">{{ victim.gender|capitalize if victim.gender else '' }}{% if victim.age %}, {{ victim.age }} years{% endif %}</small>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </li>
+                        {% endif %}
+                        
+                        <!-- Witnesses -->
+                        {% if crime.witnesses.count() > 0 %}
+                        <li class="list-group-item">
+                            <h6 class="mb-2"><i class="fas fa-eye me-2"></i> Witnesses</h6>
+                            <div class="ms-3">
+                                {% for witness in crime.witnesses %}
+                                <div class="mb-2">
+                                    {{ witness.name }}
+                                    {% if witness.relation_to_victim %}
+                                    <small class="text-muted">({{ witness.relation_to_victim }} of victim)</small>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </li>
+                        {% endif %}
+                    {% endif %}
+                    
+                    {% if not crime or (not criminals and crime.victims.count() == 0 and crime.witnesses.count() == 0) %}
+                    <li class="list-group-item text-center py-3">
+                        <p class="mb-0">No people records associated with this case.</p>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

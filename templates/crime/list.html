@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2>
+            <i class="fas fa-file-alt me-2"></i>
+            Crime Records
+        </h2>
+    </div>
+    {% if current_user.is_officer() %}
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('add_crime') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Add Crime Record
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Search Form -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-search me-2"></i>
+            Search Crimes
+        </h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('crime_list') }}">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    {{ form.search_term.label(class="form-label") }}
+                    {{ form.search_term(class="form-control", placeholder="Search by type, description or location", value=request.args.get('search_term', '')) }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    {{ form.crime_type.label(class="form-label") }}
+                    <select name="crime_type" class="form-select">
+                        <option value="">All Types</option>
+                        {% for type in crime_types %}
+                        <option value="{{ type }}" {% if request.args.get('crime_type') == type %}selected{% endif %}>{{ type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                    {{ form.status.label(class="form-label") }}
+                    {{ form.status(class="form-select") }}
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    {{ form.date_from.label(class="form-label") }}
+                    {{ form.date_from(class="form-control", type="date", value=request.args.get('date_from', '')) }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    {{ form.date_to.label(class="form-label") }}
+                    {{ form.date_to(class="form-control", type="date", value=request.args.get('date_to', '')) }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    {{ form.location.label(class="form-label") }}
+                    {{ form.location(class="form-control", placeholder="Filter by location", value=request.args.get('location', '')) }}
+                </div>
+            </div>
+            <div class="text-end">
+                <a href="{{ url_for('crime_list') }}" class="btn btn-secondary me-2">
+                    <i class="fas fa-redo me-1"></i> Reset
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search me-1"></i> Search
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>
+            Crime Records
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        {% if crimes.items %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Type</th>
+                        <th>Date</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for crime in crimes.items %}
+                    <tr>
+                        <td>{{ crime.id }}</td>
+                        <td>{{ crime.type }}</td>
+                        <td>{{ crime.date.strftime('%d %b %Y') }}</td>
+                        <td>{{ crime.location }}</td>
+                        <td>
+                            <span class="badge {% if crime.status == 'reported' %}bg-secondary{% elif crime.status == 'investigating' %}bg-primary{% elif crime.status == 'solved' %}bg-success{% elif crime.status == 'closed' %}bg-danger{% endif %}">
+                                {{ crime.status }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('view_crime', id=crime.id) }}" class="btn btn-sm btn-info">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            {% if current_user.is_officer() %}
+                            <a href="{{ url_for('edit_crime', id=crime.id) }}" class="btn btn-sm btn-warning">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <nav aria-label="Page navigation" class="p-3">
+            <ul class="pagination justify-content-center">
+                {% if crimes.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('crime_list', page=crimes.prev_num, search_term=request.args.get('search_term', ''), crime_type=request.args.get('crime_type', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), location=request.args.get('location', ''), status=request.args.get('status', '')) }}">
+                        Previous
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Previous</span>
+                </li>
+                {% endif %}
+                
+                {% for page_num in crimes.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        {% if crimes.page == page_num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('crime_list', page=page_num, search_term=request.args.get('search_term', ''), crime_type=request.args.get('crime_type', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), location=request.args.get('location', ''), status=request.args.get('status', '')) }}">
+                                {{ page_num }}
+                            </a>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if crimes.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('crime_list', page=crimes.next_num, search_term=request.args.get('search_term', ''), crime_type=request.args.get('crime_type', ''), date_from=request.args.get('date_from', ''), date_to=request.args.get('date_to', ''), location=request.args.get('location', ''), status=request.args.get('status', '')) }}">
+                        Next
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Next</span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-folder-open fa-3x mb-3 text-secondary"></i>
+            <p class="lead">No crime records found matching your criteria.</p>
+            {% if request.args %}
+            <a href="{{ url_for('crime_list') }}" class="btn btn-outline-primary">
+                <i class="fas fa-redo me-1"></i> Reset Filters
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

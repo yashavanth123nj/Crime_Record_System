@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2>
+            <i class="fas fa-{% if request.endpoint == 'add_evidence' %}plus{% else %}edit{% endif %} me-2"></i>
+            {% if request.endpoint == 'add_evidence' %}Add New Evidence Record{% else %}Edit Evidence Record{% endif %}
+        </h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-fingerprint me-2"></i>
+                    Evidence Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control", placeholder="Enter evidence name/identifier") }}
+                        {% for error in form.name.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.type.label(class="form-label") }}
+                        {{ form.type(class="form-control", placeholder="Enter evidence type (e.g. weapon, document, etc.)") }}
+                        {% for error in form.type.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.description.label(class="form-label") }}
+                        {{ form.description(class="form-control", rows=3, placeholder="Enter detailed description of the evidence") }}
+                        {% for error in form.description.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.location_found.label(class="form-label") }}
+                        {{ form.location_found(class="form-control", placeholder="Enter location where evidence was found") }}
+                        {% for error in form.location_found.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.collection_date.label(class="form-label") }}
+                        {{ form.collection_date(class="form-control", type="date") }}
+                        {% for error in form.collection_date.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            {{ form.custodian.label(class="form-label") }}
+                            {{ form.custodian(class="form-control", placeholder="Enter name of custodian") }}
+                            {% for error in form.custodian.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.storage_location.label(class="form-label") }}
+                            {{ form.storage_location(class="form-control", placeholder="Enter storage location") }}
+                            {% for error in form.storage_location.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.crime_id.label(class="form-label") }}
+                        {{ form.crime_id(class="form-select") }}
+                        {% for error in form.crime_id.errors %}
+                        <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('evidence_list') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-1"></i> Back to List
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i> 
+                            {% if request.endpoint == 'add_evidence' %}Save Evidence Record{% else %}Update Evidence Record{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
