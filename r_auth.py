@@ -71,7 +71,7 @@ def make_replit_blueprint():
     issuer_url = os.environ.get('ISSUER_URL', "https://replit.com/oidc")
 
     replit_bp = OAuth2ConsumerBlueprint(
-        "replit_auth",
+        "r_auth",
         __name__,
         client_id=repl_id,
         client_secret=None,
@@ -153,7 +153,7 @@ def logged_in(blueprint, token):
 
 @oauth_error.connect
 def handle_error(blueprint, error, error_description=None, error_uri=None):
-    return redirect(url_for('replit_auth.error'))
+    return redirect(url_for('r_auth.error'))
 
 
 def require_login(f):
@@ -161,7 +161,7 @@ def require_login(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated:
             session["next_url"] = get_next_navigation_url(request)
-            return redirect(url_for('replit_auth.login'))
+            return redirect(url_for('r_auth.login'))
 
         return f(*args, **kwargs)
 
